@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bangtan Arcade | BTS Surprise Song Games</title>
+  <meta name="description" content="An OT7 ARMY arcade for BTS surprise mystery tour songs, picks, bingo, song vault tracking, and leaderboards." />
+  <meta property="og:title" content="Bangtan Arcade" />
+  <meta property="og:description" content="Play Bangtan Roulette, Fantasy, Bingo, If They Play, and track the BTS random-song vault." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --display:'Bagel Fat One', 'Arial Rounded MT Bold', system-ui, sans-serif;
+      --body:'Nunito', system-ui, sans-serif;
+      --rm:#60A5FA;--jin:#F472B6;--suga:#E2E8F0;--hobi:#F87171;--jimin:#FCD34D;--v:#34D399;--jk:#A78BFA;
+      --page:#A78BFA;--dot:#A78BFA;--ticker:38px;--nav:58px;--top:96px;
+      --ink:#fff;--text:rgba(255,255,255,.86);--muted:rgba(255,255,255,.58);
+      --glass:rgba(255,255,255,.105);--glass2:rgba(255,255,255,.055);--line:rgba(216,180,254,.28);
+      --ease:cubic-bezier(.16,1,.3,1);--aurora:20s;--fall:1;
+    }
+    html{scroll-behavior:smooth;overflow-x:hidden}
+    body{min-height:100dvh;overflow-x:hidden;background:#05020f;color:var(--text);font-family:var(--body);font-size:16px;line-height:1.6}
+    body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(circle at 12% 12%,rgba(167,139,250,.45),transparent 28%),radial-gradient(circle at 84% 8%,rgba(244,114,182,.30),transparent 26%),radial-gradient(circle at 75% 76%,rgba(96,165,250,.22),transparent 28%),radial-gradient(circle at 18% 86%,rgba(52,211,153,.15),transparent 26%),linear-gradient(120deg,#05020f,#18072f,#0d0824,#020617);background-size:400% 400%;animation:aurora var(--aurora) ease infinite}
+    body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;background-image:radial-gradient(rgba(255,255,255,.18) 1px,transparent 1px),linear-gradient(120deg,transparent 0 44%,rgba(255,255,255,.08) 48%,transparent 52%);background-size:28px 28px,260px 260px;mask-image:linear-gradient(#000,transparent 82%)}
+    body[data-city-energy=legendary]{--aurora:10s;--fall:2}
+    body[data-city-energy=dreamy]{--aurora:26s;--fall:.65}
+    button,input,select{font:inherit;color:inherit}button{border:0;background:none;cursor:pointer;min-height:44px}input,select{min-height:44px}
+    :focus-visible{outline:2px solid var(--page);outline-offset:3px;border-radius:12px}
+    @keyframes aurora{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+    @keyframes ticker{to{transform:translateX(-50%)}}
+    @keyframes fall{from{transform:translateY(-60px) rotate(0deg)}to{transform:translateY(110vh) rotate(180deg)}}
+    @keyframes hue{to{filter:hue-rotate(360deg)}}
+    @keyframes shimmer{from{transform:translateX(-120%) rotate(10deg)}to{transform:translateX(120%) rotate(10deg)}}
+    @keyframes pulse{50%{box-shadow:0 0 0 1px color-mix(in srgb,var(--page) 45%,transparent),0 0 44px color-mix(in srgb,var(--page) 70%,transparent),0 0 92px color-mix(in srgb,var(--page) 30%,transparent)}}
+    @keyframes toast{from{transform:translate(-50%,120%);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+    @keyframes pop{50%{transform:scale(1.08)}}
+    @keyframes confetti{to{transform:translate(var(--x),-180px) rotate(420deg);opacity:0}}
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+    .skip{position:absolute;top:-80px;left:8px;z-index:9999;background:white;color:#1e0b3b;padding:10px 14px;border-radius:999px}.skip:focus{top:8px}
+    .falling-layer,.confetti{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}.falling{position:absolute;top:-60px;color:#e9d5ff;text-shadow:0 0 14px rgba(167,139,250,.8),0 0 34px rgba(244,114,182,.45);animation-name:fall,hue;animation-timing-function:linear;animation-iteration-count:infinite}
+    .ticker{position:fixed;top:0;left:0;right:0;height:var(--ticker);z-index:1000;display:flex;align-items:center;overflow:hidden;background:linear-gradient(90deg,#4c1d95,#7c3aed,#a78bfa,#5b21b6);box-shadow:0 8px 28px rgba(91,33,182,.35);-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+    .ticker-track{white-space:nowrap;padding-left:24px;font-size:11px;line-height:38px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;color:white;animation:ticker 42s linear infinite}
+    .nav{position:fixed;top:var(--ticker);left:0;right:0;height:var(--nav);z-index:999;display:flex;align-items:center;gap:14px;padding:0 clamp(14px,3vw,38px);background:rgba(7,2,20,.62);backdrop-filter:blur(28px) saturate(190%);border-bottom:1px solid rgba(216,180,254,.24);box-shadow:0 18px 50px rgba(0,0,0,.32)}
+    .logo{font-family:var(--display);font-size:20px;letter-spacing:.04em;color:white;text-shadow:0 0 18px rgba(167,139,250,.65);white-space:nowrap}.logo-dot{color:var(--dot);text-shadow:0 0 12px var(--dot),0 0 30px var(--dot)}
+    .nav-tabs{display:flex;justify-content:center;gap:5px;flex:1;min-width:0}.tab{padding:8px 9px;border-radius:999px;color:rgba(255,255,255,.67);font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;transition:.2s var(--ease)}.tab:hover{background:rgba(255,255,255,.1);color:white}.tab.active{color:white;background:linear-gradient(135deg,#4c1d95,#8b5cf6);box-shadow:0 0 0 1px rgba(255,255,255,.25) inset,0 0 26px rgba(167,139,250,.55)}
+    .account-btn{padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.10);border:1px solid rgba(216,180,254,.28);color:white;font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;box-shadow:0 0 24px rgba(167,139,250,.16) inset}.account-btn:hover{box-shadow:0 0 30px rgba(244,114,182,.35)}
+    .hamb{display:none;margin-left:auto;color:white;font-size:24px}.mobile-menu{position:fixed;inset:0;z-index:1200;display:none;padding:72px 24px;background:rgba(7,2,20,.86);backdrop-filter:blur(28px)}.mobile-menu.open{display:block}.close{position:absolute;right:24px;top:20px;color:white;font-size:32px}.mobile-list{display:grid;gap:12px}.mobile-list .tab{font-size:16px;text-align:left;padding:16px;border:1px solid rgba(216,180,254,.22)}
+    main{position:relative;z-index:2;padding-top:var(--top)}.section{display:none;min-height:calc(100dvh - var(--top));padding:clamp(24px,4vw,58px) clamp(14px,4vw,56px)}.section.active{display:block}.wrap{width:min(1180px,100%);margin:0 auto}
+    .glass{background:linear-gradient(135deg,var(--glass),var(--glass2));border:1px solid var(--line);backdrop-filter:blur(22px) saturate(190%);box-shadow:0 24px 70px rgba(0,0,0,.32),0 0 0 1px rgba(255,255,255,.07) inset,0 0 44px rgba(167,139,250,.12);border-radius:28px}
+    .badge,.pill{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(216,180,254,.28);box-shadow:0 0 24px rgba(167,139,250,.18) inset;color:#e9d5ff;font-size:12px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
+    h1,h2,h3{font-family:var(--display);color:white;line-height:1.04;letter-spacing:.035em;text-wrap:balance}
+    h1{font-size:clamp(50px,8.6vw,108px);text-align:center;margin:14px 0 10px;text-transform:uppercase;word-spacing:.14em;text-shadow:0 0 24px rgba(167,139,250,.58),0 0 56px rgba(244,114,182,.18)}
+    .title-accent{display:block;background:linear-gradient(90deg,#fff,#c4b5fd,#fbcfe8,#a78bfa,#fff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 22px rgba(167,139,250,.52))}
+    .hero{position:relative;overflow:hidden;isolation:isolate;text-align:center;padding:clamp(22px,4vw,54px) clamp(14px,4vw,52px)}
+    .hero::before{content:"보라해 · OT7 · ARMY";position:absolute;left:24px;top:24px;z-index:-1;color:rgba(255,255,255,.28);font-weight:900;letter-spacing:.22em;text-transform:uppercase;writing-mode:vertical-rl}
+    .hero::after{content:"BTS ✦ 7 ✦ 💜";position:absolute;right:24px;bottom:20px;z-index:-1;font-family:var(--display);font-size:clamp(38px,6vw,82px);color:rgba(167,139,250,.16);text-shadow:0 0 34px rgba(167,139,250,.35)}
+    .subtitle{max-width:920px;margin:0 auto;color:white;font-size:clamp(22px,3.2vw,38px);font-weight:900;line-height:1.15;text-shadow:0 0 22px rgba(167,139,250,.34)}.copy{max-width:850px;margin:16px auto 0;color:var(--text);font-size:clamp(16px,1.8vw,19px)}
+    .stats{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin:20px 0}.stat{min-width:150px;padding:14px 18px;background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(167,139,250,.10))}.stat strong{display:block;font-family:var(--display);font-size:36px;color:white;text-shadow:0 0 20px rgba(167,139,250,.75)}.stat span{font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:12px 20px;border-radius:999px;background:linear-gradient(135deg,#4c1d95,#7c3aed,#a78bfa);color:white;font-weight:900;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 12px 34px rgba(91,33,182,.34),0 0 34px rgba(167,139,250,.42);transition:.25s var(--ease)}.btn:hover{transform:translateY(-3px);box-shadow:0 22px 60px rgba(91,33,182,.45),0 0 54px rgba(167,139,250,.66)}.btn.secondary{background:rgba(255,255,255,.10);border:1px solid rgba(216,180,254,.28);box-shadow:0 12px 30px rgba(0,0,0,.20),0 0 22px rgba(167,139,250,.14) inset}.btn[disabled]{opacity:.55;cursor:not-allowed;transform:none}.pulse{animation:pulse 2.5s ease-in-out infinite}.cta-row{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin:24px 0}
+    .mic-strip{display:flex;justify-content:center;gap:10px;margin:16px auto 0}.mic-strip span{width:14px;height:14px;border-radius:50%;background:var(--m);box-shadow:0 0 14px var(--m),0 0 30px color-mix(in srgb,var(--m) 58%,transparent)}
+    .member-row{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:30px 0 24px}.member-card{min-height:178px;padding:18px 8px;border-radius:14px 14px 30px 30px;border-color:color-mix(in srgb,var(--m) 48%,rgba(255,255,255,.18));background:linear-gradient(180deg,rgba(255,255,255,.16),color-mix(in srgb,var(--m) 18%,rgba(255,255,255,.055)));box-shadow:0 20px 45px rgba(0,0,0,.26),0 0 24px color-mix(in srgb,var(--m) 18%,transparent) inset;transition:.25s var(--ease)}.member-card h3{font-size:25px;writing-mode:vertical-rl;text-orientation:mixed;margin:auto;text-shadow:0 0 16px var(--m)}.member-card:hover{transform:translateY(-6px);box-shadow:0 24px 70px color-mix(in srgb,var(--m) 40%,transparent),0 0 40px color-mix(in srgb,var(--m) 34%,transparent)}.dot{width:13px;height:13px;border-radius:50%;background:var(--m);margin:12px auto 0;box-shadow:0 0 16px var(--m),0 0 32px color-mix(in srgb,var(--m) 60%,transparent)}
+    .section-title{font-size:clamp(42px,8vw,92px);margin:36px 0 8px}.section-kicker{color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.16em;margin:0 0 22px}
+    .game-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.game-grid-bottom{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}
+    .game-card{position:relative;overflow:hidden;display:flex;flex-direction:column;--c:var(--jk);border-radius:24px;border:1.5px solid color-mix(in srgb,var(--c) 44%,rgba(255,255,255,.12));background:linear-gradient(160deg,color-mix(in srgb,var(--c) 22%,rgba(12,4,28,.92)),color-mix(in srgb,var(--c) 8%,rgba(8,2,20,.96)));transition:.28s var(--ease);cursor:pointer;text-align:left;min-height:0}
+    .game-card:hover{transform:translateY(-7px) scale(1.02);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--c) 60%,transparent),0 18px 50px color-mix(in srgb,var(--c) 45%,transparent),0 36px 80px color-mix(in srgb,var(--c) 18%,transparent)}
+    /* Big icon zone */
+    .game-card-icon{position:relative;overflow:hidden;height:110px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,color-mix(in srgb,var(--c) 38%,rgba(0,0,0,.4)),color-mix(in srgb,var(--c) 18%,rgba(0,0,0,.6)));border-bottom:1px solid color-mix(in srgb,var(--c) 28%,rgba(255,255,255,.08))}
+    .game-card-icon::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 60% 40%,color-mix(in srgb,var(--c) 55%,transparent),transparent 68%)}
+    .game-card-icon::after{content:"";position:absolute;inset:-60%;pointer-events:none;background:linear-gradient(120deg,transparent 42%,rgba(255,255,255,.22),transparent 58%);transform:translateX(-80%) rotate(12deg);transition:.4s var(--ease)}
+    .game-card:hover .game-card-icon::after{transform:translateX(120%) rotate(12deg)}
+    .game-card-num{position:absolute;top:10px;left:12px;font-family:var(--display);font-size:11px;letter-spacing:.18em;color:color-mix(in srgb,var(--c) 90%,white);opacity:.7}
+    .game-card-emoji{font-size:52px;line-height:1;filter:drop-shadow(0 0 16px color-mix(in srgb,var(--c) 80%,transparent)) drop-shadow(0 4px 12px rgba(0,0,0,.5));position:relative;z-index:1}
+    /* Info zone */
+    .game-card-body{padding:13px 15px 14px;display:flex;flex-direction:column;gap:4px;flex:1}
+    .game-card-title{font-family:var(--display);font-size:17px;color:white;line-height:1.1;letter-spacing:.02em;text-shadow:0 0 14px color-mix(in srgb,var(--c) 50%,transparent)}
+    .game-card-desc{font-size:11px;color:rgba(255,255,255,.58);line-height:1.45;font-weight:600;margin-top:1px}
+    .game-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+    .game-card-tag{font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:color-mix(in srgb,var(--c) 95%,white);background:color-mix(in srgb,var(--c) 18%,rgba(255,255,255,.04));border:1px solid color-mix(in srgb,var(--c) 35%,rgba(255,255,255,.08));padding:3px 8px;border-radius:999px}
+    .game-card-arrow{font-size:14px;color:color-mix(in srgb,var(--c) 80%,white);opacity:.7;transition:.2s var(--ease)}
+    .game-card:hover .game-card-arrow{opacity:1;transform:translateX(3px)}
+    .page-head{display:flex;align-items:end;justify-content:space-between;gap:22px;margin-bottom:24px}.page-head h2{font-size:clamp(50px,8.5vw,108px);text-shadow:0 0 28px color-mix(in srgb,var(--page) 50%,transparent)}.page-head p{max-width:560px;font-weight:400;font-size:clamp(14px,1.4vw,17px);color:var(--text);line-height:1.6}
+    .how,.panel{padding:22px;margin:22px 0}.how h3{font-size:28px;margin-bottom:8px}.mini-note{color:var(--muted);font-size:13px;font-weight:900}.confirm{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:8px 12px;border-radius:999px;background:rgba(167,139,250,.16);border:1px solid rgba(216,180,254,.28);color:white;font-weight:900;box-shadow:0 0 24px rgba(167,139,250,.18)}
+    .mic-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin:14px 0 22px}.mic-boost{padding:13px;text-align:left;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid color-mix(in srgb,var(--m) 42%,rgba(255,255,255,.12));box-shadow:0 10px 28px rgba(0,0,0,.18);transition:.25s var(--ease)}.mic-boost h4{font-family:var(--display);font-size:22px;color:white;text-shadow:0 0 14px var(--m)}.mic-boost p{font-size:12px;line-height:1.35;color:var(--text)}.mic-boost:hover,.mic-boost.selected{transform:translateY(-3px);background:color-mix(in srgb,var(--m) 18%,rgba(255,255,255,.08));box-shadow:0 18px 44px color-mix(in srgb,var(--m) 34%,transparent),0 0 30px color-mix(in srgb,var(--m) 30%,transparent)}
+    .form-grid{display:grid;gap:12px}.form-grid.two{grid-template-columns:repeat(2,1fr)}label strong{display:block;margin-bottom:6px;color:white}input,select{width:100%;border:1px solid rgba(216,180,254,.28);border-radius:16px;background:rgba(255,255,255,.10);padding:10px 12px;color:white;box-shadow:0 10px 24px rgba(0,0,0,.14)}option{background:#120522;color:white}input::placeholder{color:rgba(255,255,255,.44)}
+    .slots,.tags,.tag-cloud{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.slot,.tag,.tracker-tag{border-radius:999px;padding:8px 11px;background:rgba(255,255,255,.10);border:1px solid rgba(216,180,254,.28);box-shadow:0 8px 20px rgba(0,0,0,.14);font-weight:900}.slot{min-width:116px;border-style:dashed}.slot.filled{border-style:solid;background:color-mix(in srgb,var(--page) 22%,rgba(255,255,255,.08));box-shadow:0 0 28px color-mix(in srgb,var(--page) 32%,transparent)}.slot[disabled]{opacity:.55;cursor:not-allowed}.badge-mini{display:inline-flex;margin-top:8px;border-radius:999px;padding:4px 8px;background:rgba(255,255,255,.10);font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.badge-mini.open{background:#7c3aed;color:white}.badge-mini.completed{background:rgba(255,255,255,.14);color:#e9d5ff}
+    .show-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.region{margin:28px 0}.region h3{font-size:32px;margin-bottom:10px}.show-card{padding:16px;min-height:202px}.show-card.completed{opacity:.55}.show-card h4{font-family:var(--display);font-size:24px;color:white}.meta{color:var(--muted);font-size:13px;font-weight:800}
+    .bingo-board{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:min(740px,100%);margin:0 auto}.bingo-cell{min-height:104px;border-radius:18px;border:1px solid rgba(244,114,182,.42);background:rgba(255,255,255,.09);box-shadow:0 10px 24px rgba(244,114,182,.14);padding:8px;color:white;font-weight:900;display:grid;place-items:center;text-align:center;font-size:13px}.bingo-cell.marked{background:rgba(244,114,182,.28);animation:pop .28s var(--ease);box-shadow:0 0 28px rgba(244,114,182,.38)}
+    .tracker{display:grid;grid-template-columns:1.25fr .85fr;gap:18px}.tracker-tag{display:inline-flex;width:auto}.tracker-tag.retired{text-decoration:line-through;opacity:.48}.live-sentence{font-family:var(--display);font-size:clamp(34px,7vw,76px);line-height:1.05;color:white;text-align:center;text-shadow:0 0 24px rgba(244,114,182,.38);margin:18px auto}.feed-card,.leader-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border-radius:18px;padding:12px 14px;margin-top:10px;background:rgba(255,255,255,.09);border:1px solid rgba(216,180,254,.22);box-shadow:0 10px 28px rgba(0,0,0,.16)}.rank{font-family:var(--display);font-size:30px;color:var(--row);text-shadow:0 0 16px color-mix(in srgb,var(--row) 55%,transparent)}
+    .stock-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.stock-card{padding:16px;min-height:142px;display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.stock-card h3{font-size:22px}.signals{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}.signal{padding:6px 9px;border-radius:999px;background:rgba(52,211,153,.14);border:1px solid rgba(52,211,153,.28);color:white;font-size:11px;font-weight:900}.signal:hover,.signal.active{box-shadow:0 0 24px rgba(52,211,153,.42);background:rgba(52,211,153,.26)}.spark{display:flex;align-items:end;gap:4px;height:34px;margin-top:8px}.bar{width:8px;border-radius:8px 8px 0 0;background:var(--v);box-shadow:0 0 14px rgba(52,211,153,.45)}
+    .profile-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:18px}.photocard{position:relative;overflow:hidden;text-align:center;padding:24px;min-height:440px;border-radius:34px;background:linear-gradient(145deg,rgba(167,139,250,.24),rgba(244,114,182,.12),rgba(96,165,250,.16));box-shadow:0 0 0 1px rgba(255,255,255,.16) inset,0 28px 80px rgba(0,0,0,.36),0 0 60px rgba(167,139,250,.24)}.photocard::before{content:"";position:absolute;inset:-40%;background:linear-gradient(120deg,transparent 42%,rgba(255,255,255,.32),transparent 58%);animation:shimmer 4.4s var(--ease) infinite}.photocard h3{font-size:44px;margin-top:12px}.photocard .big-rank{font-family:var(--display);font-size:84px;line-height:1;color:white;text-shadow:0 0 28px rgba(167,139,250,.75)}.todo-list{display:grid;gap:10px}.todo{display:flex;justify-content:space-between;gap:10px;padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.08);border:1px solid rgba(216,180,254,.22);font-weight:900}.todo.done{opacity:.58;text-decoration:line-through}
+    .ad-card{--ad:var(--page);padding:18px;margin-top:18px;border-color:color-mix(in srgb,var(--ad) 30%,rgba(255,255,255,.12))}.ad-card small{display:block;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.logo-box{width:120px;height:40px;margin:10px 0;border:1px dashed rgba(255,255,255,.28);border-radius:12px;display:grid;place-items:center;color:var(--muted);font-size:10px;font-weight:900}.ad-card h3{font-size:18px}.ad-card p{font-size:13px;color:var(--text)}
+    .sponsor-grid{display:grid;grid-template-columns:1fr 1.35fr 1fr;gap:14px}.sponsor-ticker{overflow:hidden;margin-top:14px}.sponsor-ticker div{white-space:nowrap;color:var(--muted);font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;animation:ticker 28s linear infinite}
+    .modal{position:fixed;inset:0;z-index:1500;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(5,2,15,.72);backdrop-filter:blur(18px)}.modal.open{display:flex}.modal-card{width:min(940px,100%);max-height:86dvh;overflow:auto;padding:22px}.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.song-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}.song-option{min-height:54px;padding:10px;text-align:left;border-radius:14px;background:rgba(255,255,255,.10);border:1px solid rgba(216,180,254,.24);font-weight:900}.song-option:hover{box-shadow:0 0 26px rgba(167,139,250,.28)}.song-option.retired{opacity:.36;text-decoration:line-through;cursor:not-allowed}.stream-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}.toast{position:fixed;left:50%;bottom:24px;z-index:2000;transform:translate(-50%,120%);opacity:0;padding:13px 18px;border-radius:999px;background:rgba(12,5,32,.78);backdrop-filter:blur(22px);border:1px solid rgba(216,180,254,.28);box-shadow:0 18px 52px rgba(0,0,0,.34),0 0 34px rgba(167,139,250,.28);color:white;font-weight:900}.toast.show{animation:toast .32s var(--ease) forwards}.confetti i{position:absolute;bottom:20%;left:50%;font-style:normal;animation:confetti 1s var(--ease) forwards}
+    footer{position:relative;z-index:2;text-align:center;padding:30px;color:var(--muted);font-weight:800}
+    /* Record player */
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes spin-slow{to{transform:rotate(360deg)}}
+    .record-player{display:flex;align-items:center;gap:8px;padding:5px 10px 5px 6px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(216,180,254,.22);cursor:pointer;transition:.2s var(--ease);flex-shrink:0}
+    .record-player:hover{background:rgba(255,255,255,.14);border-color:rgba(216,180,254,.4)}
+    .record-disc{width:28px;height:28px;border-radius:50%;background:conic-gradient(#1a0a2e 0deg,#3d1f6e 60deg,#1a0a2e 120deg,#5b21b6 180deg,#1a0a2e 240deg,#7c3aed 300deg,#1a0a2e 360deg);box-shadow:0 0 0 2px rgba(167,139,250,.4),0 0 10px rgba(167,139,250,.3);position:relative;flex-shrink:0}
+    .record-disc::after{content:"";position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle,#c4b5fd,#7c3aed);box-shadow:0 0 6px rgba(196,181,253,.6)}
+    .record-disc.playing{animation:spin 2.4s linear infinite}
+    .record-disc.paused{animation:none}
+    .record-info{display:flex;flex-direction:column;gap:1px;min-width:0;max-width:130px}
+    .record-title{font-size:10px;font-weight:900;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.04em}
+    .record-sub{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+    .record-toggle{font-size:13px;color:rgba(255,255,255,.7);line-height:1;padding:2px}
+    /* Nav progress bar */
+    .nav-progress{position:absolute;bottom:0;left:0;right:0;height:2px;background:rgba(255,255,255,.08)}
+    .nav-progress-fill{height:100%;background:linear-gradient(90deg,#60A5FA,#A78BFA,#F472B6);transition:width .6s var(--ease);border-radius:0 2px 2px 0}
+    /* Arcade progress strip on home */
+    .arcade-progress{display:flex;gap:6px;align-items:center;margin:18px 0 6px;flex-wrap:wrap}
+    .arcade-pip{width:28px;height:6px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.1);transition:.3s var(--ease)}
+    .arcade-pip.done{background:linear-gradient(90deg,#A78BFA,#F472B6);box-shadow:0 0 8px rgba(167,139,250,.5);border-color:transparent}
+    .arcade-pip-label{font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-left:4px}
+    @media(max-width:1100px){.nav-tabs{display:none}.hamb{display:block}.game-grid{grid-template-columns:repeat(3,1fr)}.show-grid{grid-template-columns:repeat(2,1fr)}.mic-grid{grid-template-columns:repeat(4,1fr)}.record-info{display:none}}
+    @media(max-width:720px){.game-grid{grid-template-columns:repeat(2,1fr)}.game-card-icon{height:88px}.game-card-emoji{font-size:40px}}
+    @media(max-width:640px){.record-player{display:none}}
+    @media(max-width:900px){.page-head{display:block}.sponsor-grid,.tracker,.form-grid.two{grid-template-columns:1fr}.song-grid{grid-template-columns:repeat(2,1fr)}.member-row{grid-template-columns:repeat(7,minmax(38px,1fr))}.member-card{min-height:145px}.member-card h3{font-size:20px}}
+    @media(max-width:580px){.section{padding-inline:14px}.hero{border-radius:30px}.game-grid,.show-grid{grid-template-columns:1fr}.bingo-cell{min-height:72px;font-size:11px}.song-grid{grid-template-columns:1fr}.stats{display:grid;grid-template-columns:1fr}.stat{min-width:0}h1{font-size:54px}.page-head h2{font-size:44px}.mic-grid{grid-template-columns:1fr 1fr}.member-card{min-height:126px;padding:12px 4px}.member-card h3{font-size:16px}}
+    /* ── Auth / Login ── */
+    .auth-overlay{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,2,15,.88);backdrop-filter:blur(24px)}
+    .auth-box{width:min(440px,100%);padding:36px 32px;border-radius:32px;background:linear-gradient(145deg,rgba(167,139,250,.18),rgba(244,114,182,.10));border:1px solid rgba(216,180,254,.32);box-shadow:0 32px 80px rgba(0,0,0,.5),0 0 60px rgba(167,139,250,.18)}
+    .auth-logo{font-family:var(--display);font-size:22px;color:white;text-align:center;margin-bottom:6px;text-shadow:0 0 18px rgba(167,139,250,.65)}
+    .auth-sub{text-align:center;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:28px}
+    .auth-tabs{display:flex;gap:6px;background:rgba(255,255,255,.06);border-radius:999px;padding:4px;margin-bottom:24px}
+    .auth-tab{flex:1;padding:8px;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5);transition:.2s var(--ease)}
+    .auth-tab.active{background:linear-gradient(135deg,#4c1d95,#8b5cf6);color:white;box-shadow:0 0 20px rgba(167,139,250,.4)}
+    .auth-field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+    .auth-field label{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+    .auth-field input{min-height:44px;border-radius:14px;border:1px solid rgba(216,180,254,.28);background:rgba(255,255,255,.08);padding:10px 14px;color:white;font-size:15px}
+    .auth-field input:focus{outline:2px solid rgba(167,139,250,.6);border-color:transparent}
+    .auth-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+    .auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:rgba(216,180,254,.2)}
+    .auth-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;border-radius:14px;background:rgba(255,255,255,.10);border:1px solid rgba(216,180,254,.28);color:white;font-weight:900;font-size:14px;cursor:pointer;transition:.2s var(--ease)}
+    .auth-google:hover{background:rgba(255,255,255,.16);border-color:rgba(216,180,254,.5)}
+    .auth-google svg{width:20px;height:20px;flex-shrink:0}
+    .auth-error{color:#F87171;font-size:13px;font-weight:700;text-align:center;min-height:18px;margin-top:4px}
+    .auth-footer{text-align:center;margin-top:18px;font-size:12px;color:var(--muted);font-weight:700}
+    /* Nav user pill */
+    .user-pill{display:flex;align-items:center;gap:7px;padding:5px 12px 5px 6px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(216,180,254,.22);cursor:pointer;transition:.2s var(--ease);flex-shrink:0}
+    .user-pill:hover{background:rgba(255,255,255,.14)}
+    .user-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#4c1d95,#a78bfa);display:grid;place-items:center;font-size:11px;font-weight:900;color:white;flex-shrink:0}
+    .user-name{font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:white;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .admin-badge{font-size:8px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#FCD34D;background:rgba(252,211,77,.16);border:1px solid rgba(252,211,77,.32);padding:2px 6px;border-radius:999px}
+  </style>
+</head>
+<body data-city-energy="legendary">
+  <a class="skip" href="#main">Skip to content</a>
+  <div id="fallingLayer" class="falling-layer" aria-hidden="true"></div>
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+  <div class="ticker" aria-label="ARMY ticker"><div id="tickerTrack" class="ticker-track"></div></div>
+  <header class="nav" style="position:fixed;top:var(--ticker);left:0;right:0;height:var(--nav);z-index:999;display:flex;align-items:center;gap:10px;padding:0 clamp(10px,2.5vw,32px);background:rgba(7,2,20,.62);backdrop-filter:blur(28px) saturate(190%);border-bottom:1px solid rgba(216,180,254,.24);box-shadow:0 18px 50px rgba(0,0,0,.32)">
+    <div id="navProgress" class="nav-progress"><div id="navProgressFill" class="nav-progress-fill" style="width:0%"></div></div>
+    <button class="logo" onclick="showSection('home')">BANGTAN<span class="logo-dot">●</span>ARCADE</button>
+    <nav id="navTabs" class="nav-tabs" aria-label="Primary navigation"></nav>
+    <div id="recordPlayer" class="record-player" onclick="toggleRecord()" title="BTS playlist — click to play/pause" style="margin-left:auto">
+      <div id="recordDisc" class="record-disc paused"></div>
+      <div class="record-info">
+        <div class="record-title" id="recordTitle">BTS Playlist</div>
+        <div class="record-sub" id="recordSub">tap to stream</div>
+      </div>
+      <span class="record-toggle" id="recordToggle">▶</span>
+    </div>
+    <div id="userPill" class="user-pill" onclick="handleUserPillClick()" style="margin-left:6px">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <span class="user-name" id="userName">Sign In</span>
+    </div>
+    <button class="hamb" aria-label="Open menu" onclick="toggleMobile(true)" style="margin-left:4px">☰</button>
+  </header>
+
+  <!-- Login / Sign-up Modal -->
+  <div id="authOverlay" class="auth-overlay" style="display:none">
+    <div class="auth-box">
+      <div class="auth-logo">BANGTAN<span style="color:#A78BFA">●</span>ARCADE</div>
+      <div class="auth-sub">ARMY Login · Save your picks across every device</div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabSignIn" onclick="switchAuthTab('signin')">Sign In</button>
+        <button class="auth-tab" id="tabSignUp" onclick="switchAuthTab('signup')">Join ARMY</button>
+      </div>
+      <div id="authSignIn">
+        <div class="auth-field"><label>Email</label><input id="siEmail" type="email" placeholder="your@email.com" /></div>
+        <div class="auth-field"><label>Password</label><input id="siPassword" type="password" placeholder="••••••••" /></div>
+        <button class="btn" style="width:100%;margin-top:6px" onclick="doSignIn()">Sign In</button>
+      </div>
+      <div id="authSignUp" style="display:none">
+        <div class="auth-field"><label>ARMY Name</label><input id="suName" placeholder="Your ARMY name" /></div>
+        <div class="auth-field"><label>Bias</label><input id="suBias" placeholder="OT7, JK, Jimin, V, RM, Jin, SUGA, j-hope" /></div>
+        <div class="auth-field"><label>Email</label><input id="suEmail" type="email" placeholder="your@email.com" /></div>
+        <div class="auth-field"><label>Password</label><input id="suPassword" type="password" placeholder="At least 6 characters" /></div>
+        <button class="btn" style="width:100%;margin-top:6px" onclick="doSignUp()">Create My Card</button>
+      </div>
+      <div class="auth-divider">or</div>
+      <button class="auth-google" onclick="doGoogleSignIn()">
+        <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
+      </button>
+      <div class="auth-error" id="authError"></div>
+      <div class="auth-footer">No spam ever · Your picks stay private · 💜</div>
+      <button onclick="closeAuth()" style="display:block;margin:14px auto 0;color:var(--muted);font-size:12px;font-weight:700">Maybe later</button>
+    </div>
+  </div>
+  <div id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <button class="close" aria-label="Close menu" onclick="toggleMobile(false)">×</button>
+    <div id="mobileList" class="mobile-list"></div>
+  </div>
+  <main id="main">
+    <section id="home" class="section active" data-color="#A78BFA"></section>
+    <section id="roulette" class="section" data-color="#A78BFA"></section>
+    <section id="fantasy" class="section" data-color="#A78BFA"></section>
+    <section id="stock" class="section" data-color="#34D399"></section>
+    <section id="bingo" class="section" data-color="#F472B6"></section>
+    <section id="ifplay" class="section" data-color="#F472B6"></section>
+    <section id="tracker" class="section" data-color="#E2E8F0"></section>
+    <section id="leaderboard" class="section" data-color="#A78BFA"></section>
+    <section id="vote" class="section" data-color="#FCD34D"></section>
+    <section id="stream" class="section" data-color="#22C55E"></section>
+    <section id="mycard" class="section" data-color="#F472B6"></section>
+    <section id="admin" class="section" data-color="#E2E8F0"></section>
+  </main>
+  <footer>Made for ARMY delulu math · a hope and a prayer for Ddeang · and a completely reasonable craving for a BTS member hip thrust 💜</footer>
+  <div id="songModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
+    <div class="modal-card glass">
+      <div class="modal-head"><h2 id="songModalTitle">Pick a mystery song</h2><button class="btn secondary" onclick="closeModal('songModal')">Close</button></div>
+      <input id="songSearch" placeholder="Search the full BTS group song pool..." aria-label="Search songs" oninput="renderSongOptions()" />
+      <div id="songGrid" class="song-grid"></div>
+    </div>
+  </div>
+  <div id="revealModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="revealTitle">
+    <div id="revealContent" class="modal-card glass"></div>
+  </div>
+  <div id="accountModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+    <div id="accountContent" class="modal-card glass"></div>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script>
+    // ─── SUPABASE CLIENT ─────────────────────────────────────────────────────
+    const SUPA_URL = 'https://hbsppddpqmcmunhqrwmb.supabase.co';
+    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhic3BwZGRwcW1jbXVuaHFyd21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MDIzMjEsImV4cCI6MjA5MzA3ODMyMX0.l-ipHonO5HYE45Aio8Yl0TLOKpbFEbD-KfRsjsTgosY';
+    const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+    // ─── AUTH STATE ──────────────────────────────────────────────────────────
+    let currentUser = null;
+    let currentProfile = null;
+    let isAdmin = false;
+
+    async function initAuth() {
+      const { data: { session } } = await supa.auth.getSession();
+      if (session?.user) await handleAuthUser(session.user);
+      supa.auth.onAuthStateChange(async (_event, session) => {
+        if (session?.user) {
+          await handleAuthUser(session.user);
+        } else {
+          currentUser = null; currentProfile = null; isAdmin = false;
+          updateUserPill();
+          // Re-render nav to hide admin tab
+          initNav();
+        }
+      });
+    }
+
+    async function handleAuthUser(user) {
+      currentUser = user;
+      // Fetch profile
+      const { data } = await supa.from('profiles').select('*').eq('id', user.id).single();
+      currentProfile = data;
+      isAdmin = data?.role === 'admin';
+      // Load game state from DB into STATE
+      const { data: gs } = await supa.from('game_state').select('*').eq('user_id', user.id).single();
+      if (gs) {
+        STATE.lockedShows = gs.locked_shows || {};
+        STATE.fantasyPicks = gs.fantasy_picks || {};
+        STATE.stockVote = gs.stock_vote || {};
+        STATE.bingoBoard = gs.bingo_board || null;
+        STATE.bingoMarked = gs.bingo_marked || [];
+        if (gs.if_play_entries?.length) STATE.ifPlayEntries = gs.if_play_entries;
+        STATE.player = { name: data?.army_name || user.email, bias: data?.bias || 'OT7', joined: data ? new Date(data.joined_at).toLocaleDateString() : '' };
+      }
+      updateUserPill();
+      initNav(); // re-render nav so admin tab shows/hides correctly
+      closeAuth();
+      // Load live config from DB
+      await loadSiteConfig();
+      toast(`💜 Welcome back, ${currentProfile?.army_name || 'ARMY'}!`);
+    }
+
+    async function loadSiteConfig() {
+      // Load ticker
+      const { data: ticker } = await supa.from('site_config').select('value').eq('key','ticker_text').single();
+      if (ticker?.value) { const t = typeof ticker.value === 'string' ? ticker.value : JSON.stringify(ticker.value).replace(/^"|"$/g,''); if(t) { tickerTrack.textContent = t + t; } }
+      // Load retired songs
+      const { data: retired } = await supa.from('site_config').select('value').eq('key','retired_songs').single();
+      if (retired?.value) { STATE.retiredSongs = Array.isArray(retired.value) ? retired.value : JSON.parse(retired.value); }
+      // Load vote categories
+      const { data: votes } = await supa.from('vote_categories').select('*').eq('show_active', true).order('sort_order');
+      if (votes?.length) { LIVE_VOTE_CATEGORIES = votes; renderVote(); }
+      // Load sponsors
+      const { data: sponsors } = await supa.from('sponsors').select('*');
+      if (sponsors?.length) { sponsors.forEach(s => { SPONSORS[s.slot] = { name: s.brand_name, tagline: s.tagline, logoUrl: s.logo_url, linkUrl: s.link_url, color: s.accent_color }; }); renderHome(); }
+      // Load playlists
+      const { data: spot } = await supa.from('site_config').select('value').eq('key','spotify_playlists').single();
+      const { data: appl } = await supa.from('site_config').select('value').eq('key','apple_playlists').single();
+      if (spot?.value || appl?.value) { LIVE_SPOTIFY = spot?.value || LIVE_SPOTIFY; LIVE_APPLE = appl?.value || LIVE_APPLE; renderStream(); }
+    }
+
+    // Save game state to Supabase (debounced)
+    let _saveTimer = null;
+    async function saveGameState() {
+      if (!currentUser) return;
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(async () => {
+        await supa.from('game_state').update({
+          locked_shows: STATE.lockedShows,
+          fantasy_picks: STATE.fantasyPicks,
+          stock_vote: STATE.stockVote,
+          bingo_board: STATE.bingoBoard,
+          bingo_marked: STATE.bingoMarked,
+          if_play_entries: STATE.ifPlayEntries,
+          updated_at: new Date().toISOString()
+        }).eq('user_id', currentUser.id);
+      }, 800);
+    }
+
+    // ─── AUTH UI ─────────────────────────────────────────────────────────────
+    let authTab = 'signin';
+
+    function handleUserPillClick() {
+      if (currentUser) showSection('mycard');
+      else openAuth();
+    }
+
+    function openAuth() { document.getElementById('authOverlay').style.display = 'flex'; }
+    function closeAuth() { document.getElementById('authOverlay').style.display = 'none'; document.getElementById('authError').textContent = ''; }
+
+    function switchAuthTab(tab) {
+      authTab = tab;
+      document.getElementById('authSignIn').style.display = tab === 'signin' ? 'block' : 'none';
+      document.getElementById('authSignUp').style.display = tab === 'signup' ? 'block' : 'none';
+      document.getElementById('tabSignIn').className = 'auth-tab' + (tab === 'signin' ? ' active' : '');
+      document.getElementById('tabSignUp').className = 'auth-tab' + (tab === 'signup' ? ' active' : '');
+    }
+
+    function setAuthError(msg) { document.getElementById('authError').textContent = msg; }
+
+    async function doSignIn() {
+      const email = document.getElementById('siEmail').value.trim();
+      const password = document.getElementById('siPassword').value;
+      if (!email || !password) return setAuthError('Email and password required.');
+      const { error } = await supa.auth.signInWithPassword({ email, password });
+      if (error) setAuthError(error.message);
+    }
+
+    async function doSignUp() {
+      const name = document.getElementById('suName').value.trim();
+      const bias = document.getElementById('suBias').value.trim() || 'OT7';
+      const email = document.getElementById('suEmail').value.trim();
+      const password = document.getElementById('suPassword').value;
+      if (!name || !email || !password) return setAuthError('All fields required.');
+      if (password.length < 6) return setAuthError('Password must be at least 6 characters.');
+      const { error } = await supa.auth.signUp({ email, password, options: { data: { army_name: name, bias } } });
+      if (error) setAuthError(error.message);
+      else { setAuthError(''); toast('💜 Check your email to confirm your account!'); switchAuthTab('signin'); }
+    }
+
+    async function doGoogleSignIn() {
+      const { error } = await supa.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href }
+      });
+      if (error) setAuthError(error.message);
+    }
+
+    async function doSignOut() {
+      await supa.auth.signOut();
+      STATE.player = null; STATE.lockedShows = {}; STATE.fantasyPicks = {}; STATE.stockVote = {};
+      STATE.bingoBoard = null; STATE.bingoMarked = []; STATE.ifPlayEntries = [...DEFAULT_IF_PLAY];
+      renderMyCard(); renderHome(); toast('Signed out. See you next show night 💜');
+    }
+
+    function updateUserPill() {
+      const pill = document.getElementById('userPill');
+      const avatar = document.getElementById('userAvatar');
+      const name = document.getElementById('userName');
+      if (currentProfile) {
+        const initials = currentProfile.army_name.slice(0,2).toUpperCase();
+        avatar.textContent = initials;
+        avatar.style.background = currentProfile.bias && MIC[currentProfile.bias] ?
+          `linear-gradient(135deg,#1a0038,${MIC[currentProfile.bias]})` :
+          'linear-gradient(135deg,#4c1d95,#a78bfa)';
+        name.textContent = currentProfile.army_name;
+        if (isAdmin) {
+          name.innerHTML = currentProfile.army_name + ' <span class="admin-badge">ADMIN</span>';
+        }
+      } else {
+        avatar.textContent = '?';
+        avatar.style.background = 'linear-gradient(135deg,#1a0038,#4c1d95)';
+        name.textContent = 'Sign In';
+      }
+    }
+
+    // Live vote categories and playlists (overridden from DB when logged in)
+    let LIVE_VOTE_CATEGORIES = null;
+    let LIVE_SPOTIFY = null;
+    let LIVE_APPLE = null;
+    const MIC={RM:"#60A5FA",Jin:"#F472B6",SUGA:"#E2E8F0","j-hope":"#F87171",Jimin:"#FCD34D",V:"#34D399",JK:"#A78BFA"};
+    const NAV=[["home","Home","#A78BFA"],["roulette","Roulette","#A78BFA"],["fantasy","League","#A78BFA"],["stock","Stock Market","#34D399"],["bingo","Bingo","#F472B6"],["ifplay","If They Play","#F472B6"],["tracker","Song Vault","#E2E8F0"],["leaderboard","Leaderboard","#A78BFA"],["vote","Vote","#FCD34D"],["stream","Stream","#22C55E"],["mycard","My Card","#F472B6"],["admin","⚙️ Sponsors","#E2E8F0"]];
+    const BOOSTS=[
+      ["RM","Blueprint Boost","Strategy +3 when a likely or trending pick hits.",MIC.RM],
+      ["Jin","Heart Pick Boost","Heart +5 when your personal wish pick comes true.",MIC.Jin],
+      ["SUGA","Deep Cut Bonus","Precision +4 when one of your picks is a non-single, hidden-track, or deep-cut choice.",MIC.SUGA],
+      ["j-hope","Chaos Boost","Risk +7 when a low-probability pick actually appears.",MIC["j-hope"]],
+      ["Jimin","Serendipity Bonus","Timing +4 when the song lands in the exact pick slot you chose.",MIC.Jimin],
+      ["V","Wildcard Bonus","Taste +5 when your least-picked or underdog song appears.",MIC.V],
+      ["JK","Golden Lock","Main-character +5 when both of your picks are correct.",MIC.JK]
+    ];
+    const tickerText="💜 BANGTAN ARCADE IS OPEN · ✨ PICK TWO SONGS BEFORE SHOWTIME · 🎯 LOCK YOUR PICKS, THEN LET THE SETLIST DO WHAT IT DOES · 💜 OT7 MIC COLORS ARE BOOST STYLES, NOT TEAMS · 🎤 TAMPA DAY 3: BAEPSAE / SILVER SPOON + LIFE GOES ON · ✨ RETIRED SONGS ARE LOCKED · 💜 START WITH ROULETTE, CHECK THE SONG VAULT, THEN PLAY THE SIDE QUESTS · ";
+    const GAMES=[
+      ["roulette","01","Bangtan Roulette","Pick two songs for one show before it locks.","#A78BFA","🎰","Main Game"],
+      ["fantasy","02","Tour League","Play the long game. Pick across every open stop.","#60A5FA","🏆","Season Game"],
+      ["stock","03","Delulu Stock Market","Buy, hold, or risk your emotional portfolio.","#34D399","📈","Standalone"],
+      ["bingo","04","Bingo Card","Build or randomize a 5×5 card of eligible songs.","#F472B6","🎲","Standalone"],
+      ["ifplay","05","If They Play","Write the ARMY promise you will absolutely regret.","#FCD34D","😭","Community"],
+      ["tracker","06","Song Vault","What's still eligible. What has retired. Reference only.","#E2E8F0","📋","Reference"],
+      ["leaderboard","07","Leaderboard","Overall standings plus boards for each game.","#34D399","👑","Standings"],
+      ["vote","08","Vote Now","Active AMA nominations. Vote BTS. Repeat.","#FCD34D","🗳️","Awards"],
+      ["stream","09","Stream","Your playlists. Every play counts.","#22C55E","🎧","Stream"]
+    ];
+    const RETIRED_SONGS=["Mikrokosmos (소우주)","I Need U","Take Two","DNA","Spring Day (봄날)","Run","Save Me","Crystal Snow","Dope (쩔어)","For You","Permission to Dance","Magic Shop","Boy With Luv (작은 것들을 위한 시)","Pied Piper","Baepsae / Silver Spoon (뱁새)","Life Goes On"];
+    function s(id,city,country,venue,date,status,randomSongs,region){return{id,city,country,venue,date,status,randomSongs,region}}
+    const TOUR=[
+      s("goyang-1","Goyang Day 1","South Korea","Goyang Stadium","April 9, 2026","completed",["Mikrokosmos (소우주)","I Need U"],"Korea"),s("goyang-2","Goyang Day 2","South Korea","Goyang Stadium","April 11, 2026","completed",["Take Two","DNA"],"Korea"),s("goyang-3","Goyang Day 3","South Korea","Goyang Stadium","April 12, 2026","completed",["Spring Day (봄날)","Run"],"Korea"),s("tokyo-1","Tokyo Day 1","Japan","Tokyo Dome","April 17, 2026","completed",["Save Me","Crystal Snow"],"Asia"),s("tokyo-2","Tokyo Day 2","Japan","Tokyo Dome","April 18, 2026","completed",["Dope (쩔어)","For You"],"Asia"),s("tampa-1","Tampa Day 1","USA","Raymond James Stadium","April 25, 2026","completed",["Permission to Dance","Magic Shop"],"North America"),s("tampa-2","Tampa Day 2","USA","Raymond James Stadium","April 26, 2026","completed",["Boy With Luv (작은 것들을 위한 시)","Pied Piper"],"North America"),s("tampa-3","Tampa Day 3","USA","Raymond James Stadium","April 28, 2026","completed",["Baepsae / Silver Spoon (뱁새)","Life Goes On"],"North America"),
+      s("el-paso-1","El Paso Day 1","USA","Sun Bowl","May 2, 2026","open",[],"North America"),s("el-paso-2","El Paso Day 2","USA","Sun Bowl","May 3, 2026","open",[],"North America"),s("mexico-city-1","Mexico City Day 1","Mexico","Estadio GNP Seguros","May 7, 2026","open",[],"North America"),s("mexico-city-2","Mexico City Day 2","Mexico","Estadio GNP Seguros","May 9, 2026","open",[],"North America"),s("mexico-city-3","Mexico City Day 3","Mexico","Estadio GNP Seguros","May 10, 2026","open",[],"North America"),s("stanford-1","Stanford Day 1","USA","Stanford Stadium","May 16, 2026","open",[],"North America"),s("stanford-2","Stanford Day 2","USA","Stanford Stadium","May 17, 2026","open",[],"North America"),s("stanford-3","Stanford Day 3","USA","Stanford Stadium","May 19, 2026","open",[],"North America"),s("las-vegas-1","Las Vegas Day 1","USA","Allegiant Stadium","May 23, 2026","open",[],"North America"),s("las-vegas-2","Las Vegas Day 2","USA","Allegiant Stadium","May 24, 2026","open",[],"North America"),s("las-vegas-3","Las Vegas Day 3","USA","Allegiant Stadium","May 27, 2026","open",[],"North America"),s("las-vegas-4","Las Vegas Day 4","USA","Allegiant Stadium","May 28, 2026","open",[],"North America"),s("busan-1","Busan Day 1","South Korea","TBA","June 12, 2026","open",[],"Korea"),s("busan-2","Busan Day 2","South Korea","TBA","June 13, 2026","open",[],"Korea"),s("madrid-1","Madrid Day 1","Spain","Riyadh Air Metropolitano","June 26, 2026","open",[],"Europe"),s("madrid-2","Madrid Day 2","Spain","Riyadh Air Metropolitano","June 27, 2026","open",[],"Europe"),s("brussels-1","Brussels Day 1","Belgium","King Baudouin Stadium","July 1, 2026","open",[],"Europe"),s("brussels-2","Brussels Day 2","Belgium","King Baudouin Stadium","July 2, 2026","open",[],"Europe"),s("london-1","London Day 1","UK","Tottenham Hotspur Stadium","July 6, 2026","open",[],"Europe"),s("london-2","London Day 2","UK","Tottenham Hotspur Stadium","July 7, 2026","open",[],"Europe"),s("munich-1","Munich Day 1","Germany","Allianz Arena","July 11, 2026","open",[],"Europe"),s("munich-2","Munich Day 2","Germany","Allianz Arena","July 12, 2026","open",[],"Europe"),s("paris-1","Paris Day 1","France","Stade de France","July 17, 2026","open",[],"Europe"),s("paris-2","Paris Day 2","France","Stade de France","July 18, 2026","open",[],"Europe"),s("east-rutherford-1","East Rutherford Day 1","USA","MetLife Stadium","August 1, 2026","open",[],"North America"),s("east-rutherford-2","East Rutherford Day 2","USA","MetLife Stadium","August 2, 2026","open",[],"North America"),s("foxborough-1","Foxborough Day 1","USA","Gillette Stadium","August 5, 2026","open",[],"North America"),s("foxborough-2","Foxborough Day 2","USA","Gillette Stadium","August 6, 2026","open",[],"North America"),s("baltimore-1","Baltimore Day 1","USA","M&T Bank Stadium","August 10, 2026","open",[],"North America"),s("baltimore-2","Baltimore Day 2","USA","M&T Bank Stadium","August 11, 2026","open",[],"North America"),s("arlington-1","Arlington Day 1","USA","AT&T Stadium","August 15, 2026","open",[],"North America"),s("arlington-2","Arlington Day 2","USA","AT&T Stadium","August 16, 2026","open",[],"North America"),s("toronto-1","Toronto Day 1","Canada","Rogers Stadium","August 22, 2026","open",[],"North America"),s("toronto-2","Toronto Day 2","Canada","Rogers Stadium","August 23, 2026","open",[],"North America"),s("chicago-1","Chicago Day 1","USA","Soldier Field","August 27, 2026","open",[],"North America"),s("chicago-2","Chicago Day 2","USA","Soldier Field","August 28, 2026","open",[],"North America"),s("la-1","Los Angeles Day 1","USA","SoFi Stadium","September 1, 2026","open",[],"North America"),s("la-2","Los Angeles Day 2","USA","SoFi Stadium","September 2, 2026","open",[],"North America"),s("la-3","Los Angeles Day 3","USA","SoFi Stadium","September 5, 2026","open",[],"North America"),s("la-4","Los Angeles Day 4","USA","SoFi Stadium","September 6, 2026","open",[],"North America"),
+      s("bogota-1","Bogotá Day 1","Colombia","Colombia","October 2, 2026","open",[],"Latin America"),s("bogota-2","Bogotá Day 2","Colombia","Colombia","October 3, 2026","open",[],"Latin America"),s("lima-1","Lima Day 1","Peru","Peru","October 9, 2026","open",[],"Latin America"),s("lima-2","Lima Day 2","Peru","Peru","October 10, 2026","open",[],"Latin America"),s("santiago-1","Santiago Day 1","Chile","Chile","October 16, 2026","open",[],"Latin America"),s("santiago-2","Santiago Day 2","Chile","Chile","October 17, 2026","open",[],"Latin America"),s("buenos-aires-1","Buenos Aires Day 1","Argentina","Argentina","October 23, 2026","open",[],"Latin America"),s("buenos-aires-2","Buenos Aires Day 2","Argentina","Argentina","October 24, 2026","open",[],"Latin America"),s("sao-paulo-1","São Paulo Day 1","Brazil","Brazil","October 28, 2026","open",[],"Latin America"),s("sao-paulo-2","São Paulo Day 2","Brazil","Brazil","October 30, 2026","open",[],"Latin America"),s("sao-paulo-3","São Paulo Day 3","Brazil","Brazil","October 31, 2026","open",[],"Latin America"),
+      s("kaohsiung-1","Kaohsiung Day 1","Taiwan","Taiwan","November 19, 2026","open",[],"Asia"),s("kaohsiung-2","Kaohsiung Day 2","Taiwan","Taiwan","November 21, 2026","open",[],"Asia"),s("kaohsiung-3","Kaohsiung Day 3","Taiwan","Taiwan","November 22, 2026","open",[],"Asia"),s("bangkok-1","Bangkok Day 1","Thailand","Thailand","December 3, 2026","open",[],"Asia"),s("bangkok-2","Bangkok Day 2","Thailand","Thailand","December 5, 2026","open",[],"Asia"),s("bangkok-3","Bangkok Day 3","Thailand","Thailand","December 6, 2026","open",[],"Asia"),s("kuala-lumpur-1","Kuala Lumpur Day 1","Malaysia","Malaysia","December 12, 2026","open",[],"Asia"),s("kuala-lumpur-2","Kuala Lumpur Day 2","Malaysia","Malaysia","December 13, 2026","open",[],"Asia"),s("singapore-1","Singapore Day 1","Singapore","Singapore","December 17, 2026","open",[],"Asia"),s("singapore-2","Singapore Day 2","Singapore","Singapore","December 19, 2026","open",[],"Asia"),s("singapore-3","Singapore Day 3","Singapore","Singapore","December 20, 2026","open",[],"Asia"),s("singapore-4","Singapore Day 4","Singapore","Singapore","December 22, 2026","open",[],"Asia"),s("jakarta-1","Jakarta Day 1","Indonesia","Indonesia","December 26, 2026","open",[],"Asia"),s("jakarta-2","Jakarta Day 2","Indonesia","Indonesia","December 27, 2026","open",[],"Asia"),s("melbourne-1","Melbourne Day 1","Australia","Australia","February 12, 2027","open",[],"Oceania"),s("melbourne-2","Melbourne Day 2","Australia","Australia","February 13, 2027","open",[],"Oceania"),s("sydney-1","Sydney Day 1","Australia","Australia","February 20, 2027","open",[],"Oceania"),s("sydney-2","Sydney Day 2","Australia","Australia","February 21, 2027","open",[],"Oceania"),s("hong-kong-1","Hong Kong Day 1","Hong Kong","Hong Kong","March 4, 2027","open",[],"Asia"),s("hong-kong-2","Hong Kong Day 2","Hong Kong","Hong Kong","March 6, 2027","open",[],"Asia"),s("hong-kong-3","Hong Kong Day 3","Hong Kong","Hong Kong","March 7, 2027","open",[],"Asia"),s("manila-1","Manila Day 1","Philippines","Philippines","March 13, 2027","open",[],"Asia"),s("manila-2","Manila Day 2","Philippines","Philippines","March 14, 2027","open",[],"Asia")
+    ];
+    const RAW_SONGS=`Intro: 2 Cool 4 Skool|We Are Bulletproof Pt.2|Skit: Circle Room Talk|No More Dream|Interlude|Like (좋아요)|Outro: Circle Room Cypher|Intro: O!RUL8,2?|N.O|We On|If I Ruled the World|Coffee|BTS Cypher Pt.1|Attack on Bangtan (진격의 방탄)|Satoori Rap (팔도강산)|Outro: Luv in Skool|Intro: Skool Luv Affair|Boy in Luv (상남자)|Skit: Soulmate|Where You From (어디에서 왔는지)|Just One Day (하루만)|Tomorrow|BTS Cypher Pt.2: Triptych|Spine Breaker (등골브레이커)|Jump|Outro: Propose|Miss Right|I Like It Pt.2 (좋아요 Pt.2)|Intro: What Am I to You|Danger|War of Hormone (호르몬 전쟁)|Hip Hop Phile|Let Me Know|Rain|BTS Cypher Pt.3: Killer|Interlude: What Are You Doing Now?|Could You Turn Off Your Cell Phone? (핸드폰 좀 꺼줄래)|Embarrassed / Blanket Kick (이불킥)|24/7=Heaven|Look Here (여기 봐)|So 4 More|2nd Grade (2학년)|Outro: Does That Make Sense?|The Stars|Wake Up|Intro: The Most Beautiful Moment in Life|I Need U|Hold Me Tight (잡아줘)|Skit: Expectation!|Dope (쩔어)|Boyz with Fun (흥탄소년단)|Converse High|Moving On (이사)|Outro: Love Is Not Over|Intro: Never Mind|Run|Butterfly|Whalien 52|Ma City|Baepsae / Silver Spoon (뱁새)|Skit: One Night in a Strange City|Autumn Leaves / Dead Leaves (고엽)|Outro: House of Cards|Epilogue: Young Forever|Fire (불타오르네)|Save Me|House of Cards|Love Is Not Over|Wishing on a Star|Good Day|For You|Intro: Boy Meets Evil|Blood Sweat & Tears (피 땀 눈물)|Begin|Lie|Stigma|First Love|Reflection|MAMA|Awake|Lost|BTS Cypher 4|Am I Wrong|21st Century Girl (21세기 소녀)|Two! Three! (둘! 셋!)|Interlude: Wings|Spring Day (봄날)|Not Today|Outro: Wings|A Supplementary Story: You Never Walk Alone|Intro: Serendipity|DNA|Best of Me|Dimple (보조개)|Pied Piper|Skit: Billboard Music Awards Speech|MIC Drop|Go Go (고민보다 Go)|Outro: Her|Sea (바다)|Don't Leave Me|Let Go|Crystal Snow|Intro: Singularity|Fake Love|The Truth Untold (전하지 못한 진심)|134340|Paradise (낙원)|Love Maze|Magic Shop|Airplane Pt.2|Anpanman|So What|Outro: Tear|Intro: Euphoria|Trivia: Just Dance|Serendipity|Trivia: Love|Her|Singularity|IDOL|Answer: Love Myself|I'm Fine|Trivia: Seesaw|Epiphany|Intro: Persona|Boy With Luv (작은 것들을 위한 시)|Mikrokosmos (소우주)|Make It Right|HOME|Jamais Vu|Dionysus|Lights|Intro: Calling|Stay Gold|Your Eyes Tell|Outro: The Journey|Interlude: Shadow|Black Swan|Filter|My Time (시차)|Louder than bombs|ON|UGH! (욱)|00:00 / Zero O'Clock|Inner Child|Friends (친구)|Moon|Respect|We Are Bulletproof: the Eternal|Outro: Ego|Life Goes On|Fly To My Room (내 방을 여행하는 법)|Blue & Grey|Skit|Telepathy (잠시)|Dis-ease (병)|Stay|Dynamite|Film out|Butter|Permission to Dance|My Universe|Born Singer|Yet To Come|Run BTS|For Youth|Quotation Mark|Young Love|Tony Montana with Jimin|Still With You acapella|Jump demo|Boy in Luv demo|I Need U demo|Boyz with Fun demo|Young Forever RM demo|Spring Day V demo|DNA j-hope demo|Epiphany Jin demo|Seesaw demo instrumental|Take Two|Heartbeat|Dream Glow|A Brand New Day|All Night`;
+    const ALL_SONGS=[...new Set(RAW_SONGS.split("|").map(x=>x.trim()).filter(Boolean))];
+    const SONGS=ALL_SONGS.filter(x=>!RETIRED_SONGS.includes(x));
+    const CITY_TIERS={legendary:["Goyang","Seoul","Busan","Los Angeles","Las Vegas","Chicago","Tokyo"],major:["New York","London","Tampa","Stanford"],dreamy:["El Paso","Paris","Brussels","Munich","Melbourne","Sydney","Manila"]};
+    const DEFAULT_IF_PLAY=["If they play Paradise, I will stare into the middle distance until further notice.","If they play Louder than bombs, I will become a legal problem.","If they play Dimple, I will need everyone to lower their expectations of my behavior.","If they play Sea, I will invoice BigHit for emotional damages.","If they play House of Cards, I will simply evaporate.","If they play Run BTS, I will count it as cardio."];
+    const STATE={city:"El Paso",cityEnergy:"dreamy",player:null,selectedMember:"JK",rouletteShowId:"el-paso-1",roulettePicks:[],lockedShows:{},fantasyPicks:{},stockVote:{},bingoBoard:null,bingoMarked:[],bingoBuildIndex:null,retiredSongs:[...RETIRED_SONGS],ifPlayEntries:[...DEFAULT_IF_PLAY],currentPickContext:null};
+    function html(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
+    function js(s){return JSON.stringify(s)}
+    function toast(msg){let t=document.getElementById("toast");t.textContent=msg;t.classList.remove("show");void t.offsetWidth;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2600)}
+    function stat(label,value){return `<div class="stat glass"><strong>${value}</strong><span>${label}</span></div>`}
+    // ─── SPONSOR CONFIG ─────────────────────────────────────────────────────────
+    // Edit sponsor slots here. Each slot has: name, tagline, logoUrl, linkUrl, color.
+    // logoUrl: paste a direct image URL (https://...) or leave "" for placeholder.
+    // linkUrl: where "Learn More" goes. color: accent hex for the card glow.
+    const SPONSORS = {
+      home_left:   { name:"Left Sponsor",    tagline:"Premium glow placement.",      logoUrl:"", linkUrl:"#", color:"#A78BFA" },
+      home_main:   { name:"Main Sponsor",    tagline:"Prime ARMY real estate.",       logoUrl:"", linkUrl:"#", color:"#F472B6" },
+      home_right:  { name:"Right Sponsor",   tagline:"Premium glow placement.",       logoUrl:"", linkUrl:"#", color:"#60A5FA" },
+      roulette:    { name:"Roulette Sponsor",tagline:"Sponsor the night-of chaos.",   logoUrl:"", linkUrl:"#", color:"#A78BFA" },
+      fantasy:     { name:"League Sponsor",  tagline:"Sponsor the season.",           logoUrl:"", linkUrl:"#", color:"#60A5FA" },
+      stock:       { name:"Stock Sponsor",   tagline:"Sponsor the emotional market.", logoUrl:"", linkUrl:"#", color:"#34D399" },
+      bingo:       { name:"Bingo Sponsor",   tagline:"Sponsor the glitter.",          logoUrl:"", linkUrl:"#", color:"#F472B6" },
+      ifplay:      { name:"Drama Sponsor",   tagline:"Sponsor the tissue moment.",    logoUrl:"", linkUrl:"#", color:"#F472B6" },
+      tracker:     { name:"Vault Sponsor",   tagline:"Sponsor the archive.",          logoUrl:"", linkUrl:"#", color:"#E2E8F0" },
+      vote:        { name:"Vote Sponsor",    tagline:"Sponsor the campaign.",         logoUrl:"", linkUrl:"#", color:"#FCD34D" },
+      stream:      { name:"Stream Sponsor",  tagline:"Sponsor the streams.",          logoUrl:"", linkUrl:"#", color:"#22C55E" },
+      leaderboard: { name:"Crown Sponsor",   tagline:"Sponsor the throne.",           logoUrl:"", linkUrl:"#", color:"#A78BFA" },
+    };
+    async function saveSponsor(slot){
+      const n=document.getElementById(`sp_name_${slot}`)?.value.trim();
+      const t=document.getElementById(`sp_tag_${slot}`)?.value.trim();
+      const l=document.getElementById(`sp_logo_${slot}`)?.value.trim();
+      const u=document.getElementById(`sp_link_${slot}`)?.value.trim();
+      const c=document.getElementById(`sp_color_${slot}`)?.value.trim();
+      if(n)SPONSORS[slot].name=n;
+      if(t)SPONSORS[slot].tagline=t;
+      if(l!==undefined)SPONSORS[slot].logoUrl=l;
+      if(u)SPONSORS[slot].linkUrl=u;
+      if(c)SPONSORS[slot].color=c;
+      // Persist to Supabase if admin
+      if(isAdmin){
+        await supa.from("sponsors").update({
+          brand_name:SPONSORS[slot].name, tagline:SPONSORS[slot].tagline,
+          logo_url:SPONSORS[slot].logoUrl, link_url:SPONSORS[slot].linkUrl,
+          accent_color:SPONSORS[slot].color, updated_at:new Date().toISOString(), updated_by:currentUser.id
+        }).eq("slot",slot);
+      }
+      renderAdmin();renderHome();renderRoulette();renderFantasy();renderStock();renderBingo();renderIfPlay();renderTracker();renderLeaderboard();renderVote();renderStream();
+      toast(`${slot} sponsor saved 💜`);
+    }
+    function ad(slot,fallbackColor){
+      const sp=SPONSORS[slot]||{name:slot,tagline:"Sponsor this space.",logoUrl:"",linkUrl:"#",color:fallbackColor||"var(--page)"};
+      const logoHtml=sp.logoUrl?`<img src="${sp.logoUrl}" alt="${sp.name} logo" style="max-height:40px;max-width:120px;border-radius:8px;object-fit:contain" onerror="this.style.display='none'">`:`<div class="logo-box">ADD LOGO</div>`;
+      return `<aside class="ad-card glass" style="--ad:${sp.color};border-color:color-mix(in srgb,${sp.color} 30%,rgba(255,255,255,.12))"><small>supported by</small>${logoHtml}<h3>${sp.name}</h3><p>${sp.tagline}</p><a class="btn" style="--page:${sp.color}" href="${sp.linkUrl}" target="_blank" rel="noopener">Learn More ↗</a></aside>`;
+    }
+    function renderAdmin(){
+      const slots=Object.keys(SPONSORS);
+      admin.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge" style="background:rgba(226,232,240,.12);border-color:rgba(226,232,240,.28)">⚙️ Admin</div><h2 style="font-size:clamp(42px,7vw,88px)">Sponsor Manager</h2></div><p>Edit sponsor slots here. Changes apply live across the whole arcade without touching the code. Each slot maps to one ad placement on the corresponding page.</p></div>
+<div style="display:grid;gap:16px;margin-top:8px">
+${slots.map(slot=>{const sp=SPONSORS[slot];return`<div class="panel glass" style="border-color:color-mix(in srgb,${sp.color} 32%,rgba(255,255,255,.12))">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+  <div style="width:10px;height:10px;border-radius:50%;background:${sp.color};box-shadow:0 0 10px ${sp.color};flex-shrink:0"></div>
+  <h3 style="font-size:16px;letter-spacing:.12em;text-transform:uppercase;color:${sp.color}">${slot.replace(/_/g,' ')}</h3>
+  ${sp.logoUrl?`<img src="${sp.logoUrl}" alt="" style="height:28px;border-radius:6px;margin-left:auto;object-fit:contain" onerror="this.style.display='none'">`:'<span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:700">no logo yet</span>'}
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+  <div><label style="font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px">Brand Name</label><input id="sp_name_${slot}" value="${sp.name}" placeholder="Brand name" style="font-size:13px;padding:8px 12px;min-height:36px" /></div>
+  <div><label style="font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px">Tagline</label><input id="sp_tag_${slot}" value="${sp.tagline}" placeholder="One-line tagline" style="font-size:13px;padding:8px 12px;min-height:36px" /></div>
+  <div><label style="font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px">Logo URL</label><input id="sp_logo_${slot}" value="${sp.logoUrl}" placeholder="https://yourdomain.com/logo.png" style="font-size:13px;padding:8px 12px;min-height:36px" /></div>
+  <div><label style="font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px">Link URL</label><input id="sp_link_${slot}" value="${sp.linkUrl}" placeholder="https://sponsorwebsite.com" style="font-size:13px;padding:8px 12px;min-height:36px" /></div>
+</div>
+<div style="display:flex;align-items:center;gap:12px">
+  <div><label style="font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px">Accent Color</label><input id="sp_color_${slot}" value="${sp.color}" placeholder="#A78BFA" style="font-size:13px;padding:8px 12px;min-height:36px;width:140px" /></div>
+  <button class="btn" style="--page:${sp.color};background:linear-gradient(135deg,color-mix(in srgb,${sp.color} 60%,#0a0020),${sp.color});margin-top:18px" onclick="saveSponsor('${slot}')">Save Slot</button>
+  <div style="margin-top:18px;padding:10px 14px;border-radius:12px;background:color-mix(in srgb,${sp.color} 10%,rgba(255,255,255,.04));border:1px solid color-mix(in srgb,${sp.color} 28%,rgba(255,255,255,.08));font-size:12px;color:var(--muted);font-weight:700">Preview: ${sp.name} · ${sp.tagline}</div>
+</div>
+</div>`}).join('')}
+</div>
+<div class="panel glass" style="margin-top:22px;background:rgba(252,211,77,.06);border-color:rgba(252,211,77,.22)">
+  <h3 style="font-size:18px;margin-bottom:8px;color:#FCD34D">💡 How sponsors work</h3>
+  <p style="font-size:14px;line-height:1.7;color:var(--text)">Each slot maps to one ad card on its page. Changes are <strong>live immediately</strong> — save a slot and it updates everywhere without reloading. Logo URLs should be direct image links (ending in .png, .jpg, .svg, or .webp). If a logo fails to load, the placeholder shows instead. The accent color controls the card border glow and button color for that slot.</p>
+  <p style="font-size:13px;color:var(--muted);margin-top:8px;font-weight:700">Note: changes only last for this browser session. To make them permanent, paste your updated SPONSORS object back into the file — or ask for a database-backed version.</p>
+</div>
+</div>`;
+    }
+    function instruction(title,body,points){return `<section class="how glass"><h3>${title}</h3><p>${body}</p>${points?`<p class="mini-note">${points}</p>`:""}</section>`}
+    function nextOpen(){return TOUR.find(x=>x.status==="open")}
+    function cityBase(city){return city.replace(/ Day \d+/,"").replace("Los Angeles","Los Angeles").replace("Las Vegas","Las Vegas")}
+    function energy(city){let base=cityBase(city);if(CITY_TIERS.legendary.includes(base))return"legendary";if(CITY_TIERS.dreamy.includes(base))return"dreamy";return"major"}
+    function applyCity(city){STATE.city=cityBase(city);STATE.cityEnergy=energy(city);document.body.dataset.cityEnergy=STATE.cityEnergy;renderFalling()}
+    // Record player
+    const BEBE_PLAYLISTS={
+      spotify:{name:"Bebe's BTS Playlist",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1"},
+      apple:{name:"Bebe's Apple Music BTS",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0"}
+    };
+    let recordPlaying=false,recordSongIndex=0;
+    const recordSongs=["Dynamite","Butter","Boy With Luv","Spring Day","DNA","Fake Love","MIC Drop","IDOL","Permission to Dance","Yet To Come","Run BTS","SWIM","Euphoria","Serendipity","Filter","Blue & Grey","Life Goes On","Black Swan","ON","Magic Shop"];
+    function toggleRecord(){recordPlaying=!recordPlaying;document.getElementById('recordDisc').className='record-disc '+(recordPlaying?'playing':'paused');document.getElementById('recordToggle').textContent=recordPlaying?'⏸':'▶';if(recordPlaying){cycleRecordSong();document.getElementById('recordSub').textContent='now playing';toast('🎵 Streaming BTS — every play counts!')}else{document.getElementById('recordSub').textContent='paused';clearTimeout(window._recordTimer)}}
+    function cycleRecordSong(){recordSongIndex=(recordSongIndex+1)%recordSongs.length;document.getElementById('recordTitle').textContent=recordSongs[recordSongIndex];if(recordPlaying){window._recordTimer=setTimeout(cycleRecordSong,4800+Math.random()*2000)}}
+    // Nav progress
+    function updateNavProgress(){const tasks=[Object.keys(STATE.lockedShows).length>0,Object.values(STATE.fantasyPicks).flat().filter(Boolean).length>0,Object.keys(STATE.stockVote).length>0,!!STATE.bingoBoard,STATE.ifPlayEntries.length>6,!!STATE.player];const pct=Math.round(tasks.filter(Boolean).length/tasks.length*100);const fill=document.getElementById('navProgressFill');if(fill)fill.style.width=pct+'%'}
+    function showSection(id){document.querySelectorAll(".section").forEach(s=>s.classList.toggle("active",s.id===id));document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.target===id));document.documentElement.style.setProperty("--page",document.getElementById(id)?.dataset.color||MIC.JK);toggleMobile(false);window.scrollTo({top:0,behavior:"smooth"});playBlip(520);if(id==="stock")renderStock();if(id==="tracker")renderTracker();if(id==="leaderboard")renderLeaderboard();if(id==="mycard")renderMyCard();if(id==="admin")renderAdmin();updateNavProgress()}
+    function toggleMobile(open){mobileMenu.classList.toggle("open",open);mobileMenu.setAttribute("aria-hidden",!open)}
+    function initNav(){
+      const visibleNav = NAV.filter(n => n[0] !== 'admin' || isAdmin);
+      let h=visibleNav.map(n=>`<button class="tab ${n[0]==='home'?'active':''}" data-target="${n[0]}" onclick="showSection('${n[0]}')">${n[1]}</button>`).join("");
+      navTabs.innerHTML=h;mobileList.innerHTML=h;
+    }
+    function initDot(){let colors=Object.values(MIC),i=0;setInterval(()=>{i=(i+1)%colors.length;document.documentElement.style.setProperty("--dot",colors[i])},1600)}
+    function renderFalling(){fallingLayer.innerHTML="";let symbols=["💜","♪","♫","🎵","🤟","💎","✨","🫧","🎤","🌸","⭐"],mult=STATE.cityEnergy==="legendary"?2:STATE.cityEnergy==="dreamy"?.65:1;for(let i=0;i<35;i++){let e=document.createElement("span");e.className="falling";e.textContent=symbols[Math.floor(Math.random()*symbols.length)];let dur=8+Math.random()*14;e.style.left=Math.random()*100+"%";e.style.fontSize=12+Math.random()*12+"px";e.style.opacity=.18+Math.random()*.34;e.style.animationDuration=(dur/mult)+"s,6s";e.style.animationDelay=Math.random()*15+"s,0s";fallingLayer.appendChild(e)}}
+    function arcadeProgress(){const tasks=[Object.keys(STATE.lockedShows).length>0,Object.values(STATE.fantasyPicks).flat().filter(Boolean).length>0,Object.keys(STATE.stockVote).length>0,!!STATE.bingoBoard&&STATE.bingoMarked.length>0,STATE.ifPlayEntries.length>6,!!STATE.player];const labels=["Roulette","League","Stock","Bingo","If They Play","Card"];return`<div class="arcade-progress">${tasks.map((done,i)=>`<div class="arcade-pip ${done?'done':''}" title="${labels[i]}"></div>`).join("")}<span class="arcade-pip-label">${tasks.filter(Boolean).length}/6 modes played</span></div>`}
+    function gameCard(g){const isRef=g[0]==='tracker';return`<button class="game-card glass" style="--c:${g[4]}" onmouseenter="playBlip(740)" onclick="playBlip(880);showSection('${g[0]}')"><div class="game-card-icon"><span class="game-card-num">${g[1]}</span><span class="game-card-emoji">${g[5]}</span></div><div class="game-card-body"><div class="game-card-title">${g[2]}</div><div class="game-card-desc">${g[3]}</div><div class="game-card-footer"><span class="game-card-tag">${g[6]}</span><span class="game-card-arrow">→</span></div></div></button>`}
+    function renderHome(){home.innerHTML=`<div class="wrap hero glass"><div class="badge">💜 BTS WORLD TOUR 2026 · RANDOM SONG EDITION</div><h1>BANGTAN <span class="title-accent">ARCADE</span></h1><div class="mic-strip">${Object.values(MIC).map(c=>`<span style="--m:${c}"></span>`).join("")}</div><p class="subtitle">OT7 Command Center for the surprise mystery tour songs.</p><div style="margin:18px auto;max-width:780px;padding:16px 22px;border-radius:20px;background:rgba(167,139,250,.10);border:1px solid rgba(216,180,254,.28);display:flex;gap:14px;align-items:flex-start"><span style="font-size:22px;flex-shrink:0">💡</span><div><p style="font-weight:900;color:white;margin-bottom:4px">Play one game or play all nine — your call.</p><p style="font-size:14px;color:var(--text)">Every game is completely independent. Roulette does not affect Bingo. League does not affect Stock Market. Jump in anywhere, any time. No required order, no catch-up penalty.</p></div></div><div class="stats">${stat("SONGS RETIRED",STATE.retiredSongs.length)}${stat("SHOWS REMAINING",67)}${stat("SLOTS LEFT",134)}</div>${arcadeProgress()}<div class="cta-row"><button class="btn pulse" onclick="showSection('roulette')">Play Bangtan Roulette</button><button class="btn secondary" onclick="showSection('fantasy')">Tour League</button><button class="btn secondary" onclick="showSection('stock')">Delulu Stock Market</button></div><div class="member-row">${BOOSTS.map(m=>`<button class="member-card glass" style="--m:${m[3]}" onclick="playTone('${m[0]}')" aria-label="Play ${m[0]} piano key"><h3>${m[0]}</h3><span class="dot"></span></button>`).join("")}</div><h2 class="section-title">Choose a Mode</h2><p class="section-kicker">Nine cards · all independent · tap any card to jump in</p><div class="game-grid">${GAMES.map(g=>gameCard(g)).join("")}</div><section class="sponsor-strip glass panel"><div class="sponsor-grid">${ad("home_left")}${ad("home_main")}${ad("home_right")}</div><div class="sponsor-ticker"><div>YOUR BRAND HERE · PURPLE GLOW PLACEMENT · TOUR NIGHT CHAOS · ARMY GAME SPONSOR · YOUR BRAND HERE · PURPLE GLOW PLACEMENT · </div></div></section></div>`}
+    function playTone(member){let notes={RM:261.63,Jin:293.66,SUGA:329.63,"j-hope":349.23,Jimin:392,V:440,JK:493.88},AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;let ctx=window._bangtanAudio||(window._bangtanAudio=new AudioCtx());ctx.resume();let osc=ctx.createOscillator(),gain=ctx.createGain();osc.type="sine";osc.frequency.value=notes[member]||440;gain.gain.setValueAtTime(.0001,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.18,ctx.currentTime+.02);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.55);osc.connect(gain).connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.58);toast(`${member} piano key played.`)}
+    function playBlip(freq=660){let AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;let ctx=window._bangtanAudio||(window._bangtanAudio=new AudioCtx());ctx.resume();let osc=ctx.createOscillator(),gain=ctx.createGain();osc.type="triangle";osc.frequency.setValueAtTime(freq,ctx.currentTime);osc.frequency.exponentialRampToValueAtTime(freq*1.5,ctx.currentTime+.12);gain.gain.setValueAtTime(.0001,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.08,ctx.currentTime+.01);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.18);osc.connect(gain).connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.2)}
+    function playBoostTone(member){let notes={RM:523.25,Jin:587.33,SUGA:659.25,"j-hope":698.46,Jimin:783.99,V:880,JK:987.77},AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;let ctx=window._bangtanAudio||(window._bangtanAudio=new AudioCtx());ctx.resume();let osc=ctx.createOscillator(),gain=ctx.createGain();osc.type="sine";osc.frequency.value=notes[member]||523;gain.gain.setValueAtTime(.0001,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.14,ctx.currentTime+.02);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.55);osc.connect(gain).connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.58)}
+    function boostGrid(){return `<div class="mic-grid">${BOOSTS.map(b=>`<button class="mic-boost ${STATE.selectedMember===b[0]?'selected':''}" style="--m:${b[3]}" onclick="STATE.selectedMember='${b[0]}';playBoostTone('${b[0]}');renderRoulette();toast('${b[0]} boost selected.')"><h4>${b[0]}</h4><p><strong>${b[1]}</strong></p><p>${b[2]}</p></button>`).join("")}</div>`}
+    function selectRouletteShow(id){let prev=TOUR.find(x=>x.id===STATE.rouletteShowId);let show=TOUR.find(x=>x.id===id);STATE.rouletteShowId=id;STATE.roulettePicks=STATE.lockedShows[id]?.picks?[...STATE.lockedShows[id].picks]:[];applyCity(show.city);renderRoulette();toast(`${show.city} selected.`)}
+    function lockRoulette(){let show=TOUR.find(x=>x.id===STATE.rouletteShowId);if(!STATE.roulettePicks[0]||!STATE.roulettePicks[1])return toast("Pick two songs before locking Bangtan Roulette.");STATE.lockedShows[show.id]={picks:[...STATE.roulettePicks],boost:STATE.selectedMember,lockedAt:new Date().toISOString()};saveGameState();renderRoulette();toast(`Locked for ${show.city}. Picks can no longer be changed.`)}
+    function renderRoulette(){let show=TOUR.find(x=>x.id===STATE.rouletteShowId)||nextOpen(),locked=STATE.lockedShows[show.id],boost=BOOSTS.find(x=>x[0]===STATE.selectedMember);if(locked)STATE.roulettePicks=[...locked.picks];roulette.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge">💜 Main Game · ${show.city}</div><h2>Bangtan Roulette</h2></div><p>Pick two surprise songs for one specific tour stop. This game stands alone from Fantasy, Bingo, and If They Play.</p></div>${instruction("How to play Bangtan Roulette","Choose the show bucket, pick two eligible songs, choose one OT7 mic boost, then lock. Retired songs are visible but locked in the picker so they cannot be selected.","Scoring: +10 per correct song, +5 if both songs hit, +3 locked-before-show bonus, plus your selected OT7 mic boost. Picks lock 7 hours and 7 seconds before concert time; the next date bucket opens after the previous concert night closes.")}<div class="panel glass"><div class="form-grid two"><label><strong>Show bucket</strong><select onchange="selectRouletteShow(this.value)">${TOUR.filter(x=>x.status==='open').map(x=>`<option value="${x.id}" ${x.id===show.id?'selected':''}>${x.city} · ${x.date}</option>`).join("")}</select></label><label><strong>Current show vibe</strong><input value="${energy(show.city).toUpperCase()} · ${show.venue}" readonly /></label></div><div class="confirm">${locked?'Locked picks cannot be changed.':'Open for picks until lock window.'} Current target: ${show.city} · ${show.date}.</div></div><h3 class="section-kicker">Choose one OT7 mic boost</h3>${boostGrid()}<div class="panel glass" style="text-align:center"><div class="slots" style="justify-content:center">${[0,1].map(i=>`<button class="slot ${STATE.roulettePicks[i]?'filled':''}" ${locked?'disabled':''} onclick="openSongPicker('roulette',null,${i})">${STATE.roulettePicks[i]||`Pick Song ${i+1}`}</button>`).join("")}</div>${STATE.roulettePicks.some(Boolean)?`<div class="confirm">Current picks: ${STATE.roulettePicks.filter(Boolean).join(" + ")}</div>`:""}<div class="cta-row"><button class="btn pulse" style="--page:${boost[3]}" ${locked?'disabled':''} onclick="lockRoulette()">${locked?'Roulette Locked ✓':'Lock Bangtan Roulette'}</button></div>${locked?`<div class="confirm">Locked for ${show.city} with ${locked.boost} boost.</div>`:""}</div>${ad("roulette")}</div>`}
+    function renderFantasy(){let regions=["Korea","North America","Europe","Latin America","Asia","Oceania"];fantasy.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge">🏈 Season Game</div><h2>Fantasy League</h2></div><p>Fantasy is the long-range tour game. Fill picks across open shows and score all season.</p></div>${instruction("How to play Fantasy League","Pick two songs for each open show. Completed shows are locked and dimmed. This game is separate from Roulette and Bingo.","Scoring: +10 per correct song, +5 perfect-show bonus, +3 locked-before-show bonus. Optional boost bonuses are all +3 or higher.")}<div class="stats">${stat("Total Points",1280)}${stat("Correct Picks",17)}${stat("Stops Entered",12)}${stat("Songs Retired",STATE.retiredSongs.length)}</div><div class="cta-row" style="justify-content:flex-end;margin:4px 0 8px"><button class="btn secondary" style="font-size:11px;padding:8px 14px;min-height:36px" onclick="if(confirm('Clear all your Fantasy picks? This cannot be undone.'))resetFantasy()">↺ Reset Fantasy Picks</button></div>${regions.map(r=>`<div class="region"><h3>${r}</h3><div class="show-grid">${TOUR.filter(x=>x.region===r).map(showCard).join("")}</div></div>`).join("")}<div class="panel glass"><h3>Fantasy Leaderboard</h3>${leaders().slice(0,6).map((l,i)=>leaderRow(l,i,MIC.JK)).join("")}</div>${ad("fantasy")}</div>`}
+    function showCard(x){let done=x.status!=="open",p=STATE.fantasyPicks[x.id]||[];return `<article class="show-card glass ${done?'completed':''}"><h4>${x.city}</h4><div class="meta">${x.date} · ${x.venue}, ${x.country}</div><span class="badge-mini ${done?'completed':'open'}">${done?'COMPLETED':'OPEN'}</span><div class="${done?'tags':'slots'}">${done?x.randomSongs.map(y=>`<span class="tag">${html(y)}</span>`).join(""):[0,1].map(i=>`<button class="slot ${p[i]?'filled':''}" onclick="openSongPicker('fantasy','${x.id}',${i})">${p[i]||`Pick Slot ${i+1}`}</button>`).join("")}</div></article>`}
+    function renderStock(){let signals=["BUY","HOLD","SELL","RISK","BANKRUPT"],sample=SONGS.filter(x=>!STATE.retiredSongs.includes(x)).slice(0,48);stock.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge">📈 Standalone Game</div><h2>Delulu Stock Market</h2></div><p>Build an emotional portfolio from songs still in play. This is its own guessing game, not tied to Roulette or Fantasy.</p></div>${instruction("How to play Delulu Stock Market","Vote BUY if a song feels likely, HOLD if you are watching it, SELL if you think it is cold, RISK if it is a dangerous sleeper, or BANKRUPT if it would break the group chat.","Scoring: BUY hit +3, HOLD hit +4, RISK sleeper hit +7, BANKRUPT chaos hit +10. Retired songs are marked and cannot receive new votes.")}<div class="stats">${stat("Stocks Voted",Object.keys(STATE.stockVote).length)}${stat("Portfolio Rank",communityRank())}${stat("In Play",SONGS.filter(x=>!STATE.retiredSongs.includes(x)).length)}</div><div class="cta-row" style="justify-content:flex-end;margin-bottom:4px"><button class="btn secondary" style="font-size:11px;padding:8px 14px;min-height:36px" onclick="if(confirm('Clear all your stock signals?'))resetStock()">↺ Reset All Signals</button></div><div class="stock-grid">${sample.map(song=>`<article class="stock-card glass"><div><h3>${html(song)}</h3>${STATE.stockVote[song]?`<div class="confirm">Your signal: ${STATE.stockVote[song]}</div>`:""}<div class="spark">${[25,44,32,68,54].map(h=>`<span class="bar" style="height:${h}%"></span>`).join("")}</div></div><div class="signals">${signals.map(sig=>`<button class="signal ${STATE.stockVote[song]===sig?'active':''}" onclick='voteStock(${js(song)},"${sig}")'>${sig}</button>`).join("")}</div></article>`).join("")}</div>${ad("stock")}</div>`}
+    function voteStock(song,sig){STATE.stockVote[song]=sig;saveGameState();renderStock();toast(`${song}: ${sig} signal saved to your player card.`)}
+    function randomizeBingo(showToast=true){let pool=[...SONGS].filter(x=>!STATE.retiredSongs.includes(x)).sort(()=>Math.random()-.5).slice(0,24);pool.splice(12,0,"FREE");STATE.bingoBoard=pool;STATE.bingoMarked=[];if(showToast){renderBingo();toast("New in-play Bingo board generated.")}}
+    function buildBingo(){STATE.bingoBoard=Array(25).fill("Pick song");STATE.bingoBoard[12]="FREE";STATE.bingoMarked=[];renderBingo();toast("Manual board started. Tap a cell to choose a song.")}
+    function renderBingo(){if(!STATE.bingoBoard)randomizeBingo(false);bingo.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge">🎲 Standalone Game</div><h2>Bingo</h2></div><p>Build your own 5×5 card or randomize one from songs still in play. Retired songs never appear on new boards.</p></div>${instruction("How to play Bingo","Your board stays locked until all 24 playable cells are resolved or the board fills. Randomize gives you an in-play board; Build My Board lets you choose each cell.","Points: +3 per marked song, +10 for a completed line, +50 for a full-board clear.")}<div class="cta-row"><button class="btn" onclick="randomizeBingo(true)">Randomize in-play board</button><button class="btn secondary" onclick="buildBingo()">Build my board</button><button class="btn secondary" style="font-size:11px;padding:8px 14px;min-height:36px" onclick="if(confirm('Clear your Bingo board and marks?'))resetBingo()">↺ Reset Board</button></div><div class="bingo-board">${STATE.bingoBoard.map((song,i)=>`<button class="bingo-cell ${song==='FREE'||STATE.bingoMarked.includes(i)?'marked':''}" onclick="${song==='FREE'?'':'bingoCell('+i+')'}">${html(song)}</button>`).join("")}</div>${STATE.bingoMarked.length?`<div class="confirm">Marked cells: ${STATE.bingoMarked.length} plus FREE</div>`:""}${ad("bingo")}</div>`}
+    function bingoCell(i){if(STATE.bingoBoard[i]==="Pick song"){openSongPicker("bingo",null,i);return}if(!STATE.bingoMarked.includes(i))STATE.bingoMarked.push(i);saveGameState();checkBingo();renderBingo()}
+    function checkBingo(){let marked=new Set([...STATE.bingoMarked,12]),lines=[];for(let r=0;r<5;r++)lines.push([0,1,2,3,4].map(c=>r*5+c));for(let c=0;c<5;c++)lines.push([0,1,2,3,4].map(r=>r*5+c));lines.push([0,6,12,18,24],[4,8,12,16,20]);if(lines.find(l=>l.every(x=>marked.has(x)))){toast("BINGO. The delulu math has spoken.");burstConfetti()}}
+    function burstConfetti(){confetti.innerHTML="";["🎉","💜","✨","🌸","🎉","💜","✨","🌸"].forEach((e,i)=>{let el=document.createElement("i");el.textContent=e;el.style.setProperty("--x",(Math.random()*260-130)+"px");el.style.left=(45+Math.random()*10)+"%";el.style.animationDelay=(i*35)+"ms";confetti.appendChild(el)});setTimeout(()=>confetti.innerHTML="",1200)}
+    function renderIfPlay(){ifplay.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge">😭 Community Game</div><h2>If They Play</h2></div><p>Make a dramatic ARMY promise for one song. This is separate from Roulette and Fantasy scoring.</p></div>${instruction("How to play If They Play","Write: If they play [song], I will [reaction]. Submit it to the community feed and let the emotional record show what you promised.","Optional points: +5 if your sentence song appears later.")}<div class="panel glass"><div class="form-grid"><input id="ifSong" placeholder="The Song" oninput="updateIfPreview()" /><input id="ifDo" placeholder="What You Will Do" oninput="updateIfPreview()" /><div id="ifPreview" class="live-sentence">If they play ___, I will ___.</div><button class="btn" onclick="submitIfPlay()">Submit</button></div></div>${ad("ifplay")}<div class="panel glass"><h3>Community Feed</h3><div id="ifFeed"></div></div></div>`;renderIfFeed()}
+    function updateIfPreview(){ifPreview.textContent=`If they play ${ifSong.value||"___"}, I will ${ifDo.value||"___"}.`}
+    function submitIfPlay(){let s=ifSong.value.trim(),d=ifDo.value.trim();if(!s||!d)return toast("The drama needs both fields.");STATE.ifPlayEntries.unshift(`If they play ${s}, I will ${d}.`);saveGameState();renderIfFeed(true);toast("Entry added to the emotional record.")}
+    function renderIfFeed(newest=false){ifFeed.innerHTML=STATE.ifPlayEntries.map((x,i)=>`<div class="feed-card" style="${newest&&i===0?'animation:pop .35s var(--ease)':''}">${html(x)}</div>`).join("")}
+    function renderTracker(){tracker.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge">📋 BTS Reference</div><h2>Song Vault</h2></div><p>The Song Vault is not a game. It is the BTS reference board for what is still eligible and what has already retired from the random-song pool.</p></div>${instruction("How to use Song Vault","Check this before you play. Retired songs are locked out of pickers and never appear on new Bingo boards.","Tampa Day 3 retired Baepsae / Silver Spoon (뱁새) and Life Goes On.")}<div class="stats">${stat("Total Shows",75)}${stat("Completed",8)}${stat("Remaining",67)}${stat("Slots Used",STATE.retiredSongs.length)}${stat("Slots Left",134)}</div><div class="tracker"><section class="panel glass"><h3>Still In Play · ${SONGS.filter(x=>!STATE.retiredSongs.includes(x)).length}</h3><div class="tag-cloud">${SONGS.filter(x=>!STATE.retiredSongs.includes(x)).map(x=>`<button class="tracker-tag" onclick='revealSong(${js(x)})'>${html(x)}</button>`).join("")}</div></section><section class="panel glass"><h3>Retired · ${STATE.retiredSongs.length}</h3><div class="tag-cloud">${STATE.retiredSongs.map(x=>`<span class="tracker-tag retired">${html(x)}</span>`).join("")}</div></section></div>${ad("tracker")}</div>`}
+    function revealSong(song){revealContent.innerHTML=`<div class="modal-head"><h2 id="revealTitle">${html(song)}</h2><button class="btn secondary" onclick="closeModal('revealModal')">Close</button></div><p class="copy">Era label: BTS group discography. ARMY fact: this song has been nominated by the group chat for crimes against emotional stability.</p><div class="stream-buttons">${[["YouTube","#EF4444"],["Spotify","#22C55E"],["Apple Music","#FB7185"],["Tidal","#22D3EE"],["Deezer","#A78BFA"],["Amazon Music","#FB923C"]].map(x=>`<a class="btn" style="--page:${x[1]}" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent(song+' '+x[0])}">${x[0]}</a>`).join("")}</div>`;revealModal.classList.add("open")}
+    function leaders(){return [["MochiMathematician",9840],["NamjoonsBike",9412],["SeesawSecurities",9101],["HobiBailFund",8877],["WorldwideWinner",8652],["GreenMicCapital",8204],["YoongiSpreadsheet",7998],["PurpleMeteor",7520]]}
+    function leaderRow(l,i,color){return `<div class="leader-row" style="--row:${color}"><span class="rank">${i<3?"👑 ":""}#${i+1}</span><strong>${html(l[0])}</strong><span style="color:${color};font-weight:900">${l[1]} pts</span></div>`}
+    function renderLeaderboard(){let colors=[MIC.JK,MIC.RM,MIC.Jimin,MIC["j-hope"],MIC.Jin,MIC.V,MIC.SUGA];leaderboard.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge">👑 Standings</div><h2>Leaderboard</h2></div><p>Separate boards for each game, plus an Overall board for players who join multiple games.</p></div><div class="cta-row"><button class="btn">Overall</button><button class="btn secondary">Roulette</button><button class="btn secondary">Fantasy</button><button class="btn secondary">Stock Market</button><button class="btn secondary">Bingo</button><button class="btn secondary">If They Play</button></div><div class="panel glass">${leaders().map((l,i)=>leaderRow(l,i,colors[i%colors.length])).join("")}${STATE.player?leaderRow([STATE.player.name,playerPoints()],Math.min(communityRank()-1,8),MIC.JK):""}</div>${ad("leaderboard")}</div>`}
+    function openSongPicker(context,showId=null,slot=0){STATE.currentPickContext={context,showId,slot};songSearch.value="";renderSongOptions();songModal.classList.add("open");songSearch.focus()}
+    function renderSongOptions(){let q=(songSearch.value||"").toLowerCase();let arr=ALL_SONGS.filter(s=>s.toLowerCase().includes(q)).sort((a,b)=>rankSong(a,q)-rankSong(b,q)||a.localeCompare(b)).slice(0,140);songGrid.innerHTML=arr.map(song=>`<button class="song-option ${STATE.retiredSongs.includes(song)?'retired':''}" ${STATE.retiredSongs.includes(song)?"disabled":""} onclick='selectSong(${js(song)})'>${STATE.retiredSongs.includes(song)?"🔒 ":""}${html(song)}</button>`).join("")}
+    function rankSong(song,q){let s=song.toLowerCase();if(!q)return 3;if(s===q)return 0;if(s.startsWith(q))return 1;return 2}
+    function selectSong(song){let c=STATE.currentPickContext;if(c.context==="roulette"){STATE.roulettePicks[c.slot]=song;renderRoulette()}if(c.context==="fantasy"){STATE.fantasyPicks[c.showId]=STATE.fantasyPicks[c.showId]||[];STATE.fantasyPicks[c.showId][c.slot]=song;saveGameState();renderFantasy()}if(c.context==="bingo"){STATE.bingoBoard[c.slot]=song;renderBingo()}closeModal("songModal");toast(`${song} selected. Look for the glowing confirmation on the page.`)}
+    function playerPoints(){return Object.keys(STATE.lockedShows).length*23+Object.values(STATE.fantasyPicks).flat().filter(Boolean).length*4+Object.keys(STATE.stockVote).length*3+STATE.bingoMarked.length*3+Math.max(0,STATE.ifPlayEntries.length-6)*5}
+    function communityRank(){return Math.max(7,42-Math.floor(playerPoints()/12))}
+    function todoItems(){return[
+      ["Create player card",!!STATE.player],
+      ["Lock a Roulette show",Object.keys(STATE.lockedShows).length>0],
+      ["Add Fantasy picks",Object.values(STATE.fantasyPicks).flat().filter(Boolean).length>0],
+      ["Vote in Stock Market",Object.keys(STATE.stockVote).length>0],
+      ["Start a Bingo card",!!STATE.bingoBoard],
+      ["Post an If They Play",STATE.ifPlayEntries.length>6]
+    ]}
+    function resetStock(){STATE.stockVote={};renderStock();toast("Stock signals cleared.")}
+    function resetBingo(){STATE.bingoBoard=null;STATE.bingoMarked=[];renderBingo();toast("Bingo board cleared.")}
+    function resetFantasy(){STATE.fantasyPicks={};renderFantasy();toast("Fantasy picks cleared.")}
+
+    const AMA_AWARDS=[
+      {category:"Artist of the Year",nominees:["BTS","Taylor Swift","Bad Bunny","Bruno Mars","Lady Gaga","Harry Styles","Justin Bieber","Kendrick Lamar","Morgan Wallen","Sabrina Carpenter"],color:MIC.JK,voteUrl:"https://vote.theamas.com/artist-of-the-year/",note:1046.50},
+      {category:"Best Male K-pop Artist",nominees:["BTS","ENHYPEN","Stray Kids"],color:MIC.RM,voteUrl:"https://vote.theamas.com/best-male-k-pop-artist",note:1174.66},
+      {category:"Song of the Summer — SWIM",nominees:["BTS (SWIM)","Harry Styles (American Girls)","Taylor Swift (Elizabeth Taylor)","Jennie (Dracula)"],color:MIC.Jimin,voteUrl:"https://vote.theamas.com/song-of-the-summer",note:1318.51}
+    ];
+    function playVoteChime(freq){let AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;let ctx=window._bangtanAudio||(window._bangtanAudio=new AudioCtx());ctx.resume();let osc=ctx.createOscillator(),gain=ctx.createGain();osc.type="sine";osc.frequency.value=freq;gain.gain.setValueAtTime(.0001,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+.015);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.7);osc.connect(gain).connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.75)}
+    function renderVote(){vote.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge" style="background:rgba(252,211,77,.16);border-color:rgba(252,211,77,.35)">🏆 Awards</div><h2 class="section-title" style="--page:#FCD34D">Vote Now</h2></div><p>Active award nominations for BTS and members. Every vote counts, ARMY. Go to the link, vote BTS, repeat.</p></div>${instruction("How to vote","Click the Vote for BTS button under each category — it goes straight to the official AMA voting page. You can vote daily. Set a reminder. ARMY streaming power wins this.","2026 AMAs · May 25 · MGM Grand Garden Arena · Las Vegas · Live on CBS and Paramount+")}<div class="panel glass" style="padding:22px 28px"><div class="badge" style="margin-bottom:18px;background:rgba(252,211,77,.18);border-color:rgba(252,211,77,.38)">2026 AMERICAN MUSIC AWARDS · MAY 25 · 3 NOMINATIONS</div>${AMA_AWARDS.map(a=>`<div class="panel glass" style="margin:16px 0;padding:22px;border-color:color-mix(in srgb,${a.color} 40%,rgba(255,255,255,.12))"><h3 style="font-size:20px;color:var(--muted);font-weight:900;letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">${a.category}</h3><div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:16px;background:color-mix(in srgb,${a.color} 18%,rgba(255,255,255,.06));border:2px solid ${a.color};box-shadow:0 0 28px color-mix(in srgb,${a.color} 35%,transparent),0 0 60px color-mix(in srgb,${a.color} 15%,transparent);margin-bottom:12px"><span style="font-size:28px">💜</span><span style="font-family:var(--display);font-size:clamp(28px,4vw,42px);color:white;text-shadow:0 0 20px color-mix(in srgb,${a.color} 70%,transparent);letter-spacing:.04em">BTS</span><span style="margin-left:auto;font-size:10px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:${a.color};background:color-mix(in srgb,${a.color} 16%,transparent);padding:4px 10px;border-radius:999px;border:1px solid color-mix(in srgb,${a.color} 40%,transparent)">THE ANSWER</span></div><div style="display:flex;flex-wrap:wrap;gap:6px">${a.nominees.slice(1).map(n=>`<span style="padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);color:rgba(255,255,255,.28);font-size:12px;font-weight:700;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.3)">${n}</span>`).join('')}</div></div><a class="btn pulse" style="--page:${a.color};background:linear-gradient(135deg,color-mix(in srgb,${a.color} 60%,#1a0038),${a.color});font-size:14px;padding:14px 24px" href="${a.voteUrl}" target="_blank" rel="noopener" onclick="playVoteChime(${a.note});toast('💜 Opening AMA vote page!')">💜 Vote for BTS ↗</a></div>`).join('')}<div style="margin-top:18px;padding:14px 18px;border-radius:14px;background:rgba(252,211,77,.08);border:1px solid rgba(252,211,77,.22);font-size:13px;color:var(--muted);font-weight:700">Voting is fan-powered and resets daily. You can vote on the AMA site and on their official app. <a href="https://www.theamas.com/how-to-vote/" target="_blank" rel="noopener" style="color:#FCD34D;font-weight:900">Full voting guide ↗</a></div></div>${ad("vote")}</div>`}
+
+    const SPOTIFY_PLAYLIST={name:"BTS ARMY Playlist",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1",embedUrl:"https://open.spotify.com/embed/playlist/37i9dQZF1DX9tPFwDMOaN1"};
+    const APPLE_PLAYLIST={name:"BTS Essentials",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0"};
+    function renderStream(){stream.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge" style="background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.32)">🎧 Stream</div><h2 class="section-title" style="--page:#22C55E">Stream</h2></div><p>Keep BTS charting. Every stream, every play, every loop — it all adds up.</p></div>${instruction("Why streaming matters","Chart positions, eligibility windows, and award voting weight are all tied to stream numbers. Every play in the first 24 hours of a release is critical. Save these playlists, keep them queued, and stream on repeat.","Tip: Play on full volume, logged into your account. Muted streams do not count on most platforms.")}<div class="panel glass" style="padding:28px"><h3 style="font-size:24px;margin-bottom:4px;color:#1DB954">🎵 Spotify</h3><p style="color:var(--muted);font-size:13px;font-weight:900;margin-bottom:18px;text-transform:uppercase;letter-spacing:.1em">Bebe's BTS Playlists</p><div style="display:flex;flex-direction:column;gap:12px">${[{name:"BTS ARMY Megamix",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1",desc:"Full rotation — all eras, all members"},{name:"BTS Tour Season 2026",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1",desc:"Tour era picks + ARIRANG album"},{name:"BTS Deep Cuts",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1",desc:"B-sides, solos, and hidden gems"}].map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-radius:18px;background:rgba(29,185,84,.10);border:1px solid rgba(29,185,84,.28)"><div style="min-width:0"><div style="font-weight:900;color:white;font-size:15px">${p.name}</div><div style="color:var(--muted);font-size:12px;font-weight:700;margin-top:2px">${p.desc}</div></div><a class="btn" style="--page:#1DB954;background:linear-gradient(135deg,#1a9c47,#1DB954);white-space:nowrap;flex-shrink:0" href="${p.url}" target="_blank" rel="noopener" onclick="toast('Opening Spotify...')">Open ↗</a></div>`).join("")}</div></div><div class="panel glass" style="padding:28px;margin-top:0"><h3 style="font-size:24px;margin-bottom:4px;color:#FC3C44">🍎 Apple Music</h3><p style="color:var(--muted);font-size:13px;font-weight:900;margin-bottom:18px;text-transform:uppercase;letter-spacing:.1em">Bebe's BTS Playlists</p><div style="display:flex;flex-direction:column;gap:12px">${[{name:"BTS Essentials",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0",desc:"The non-negotiable BTS playlist"},{name:"BTS Tour Night",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0",desc:"Set-list energy from start to finish"},{name:"BTS Solo Spotlight",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0",desc:"All 7 members' solo work in one place"}].map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-radius:18px;background:rgba(252,60,68,.10);border:1px solid rgba(252,60,68,.28)"><div style="min-width:0"><div style="font-weight:900;color:white;font-size:15px">${p.name}</div><div style="color:var(--muted);font-size:12px;font-weight:700;margin-top:2px">${p.desc}</div></div><a class="btn" style="--page:#FC3C44;background:linear-gradient(135deg,#c42d33,#FC3C44);white-space:nowrap;flex-shrink:0" href="${p.url}" target="_blank" rel="noopener" onclick="toast('Opening Apple Music...')">Open ↗</a></div>`).join("")}</div></div>${ad("stream")}</div>`}
+
+    const BIAS_THEMES={
+      OT7:{gradient:"linear-gradient(145deg,rgba(167,139,250,.38),rgba(244,114,182,.22),rgba(96,165,250,.28))",accent:"#A78BFA",album:"BE",cover:"💜",quote:"OT7 forever. All 7 or nothing."},
+      RM:{gradient:"linear-gradient(145deg,rgba(96,165,250,.38),rgba(167,139,250,.22),rgba(52,211,153,.12))",accent:"#60A5FA",album:"Indigo",cover:"📘",quote:"Life goes on. Let it."},
+      Jin:{gradient:"linear-gradient(145deg,rgba(244,114,182,.38),rgba(252,211,77,.22),rgba(255,255,255,.10))",accent:"#F472B6",album:"The Astronaut",cover:"🌸",quote:"Worldwide handsome. No debate."},
+      SUGA:{gradient:"linear-gradient(145deg,rgba(226,232,240,.24),rgba(167,139,250,.22),rgba(96,165,250,.12))",accent:"#E2E8F0",album:"D-DAY",cover:"🖤",quote:"I wanted to show you my scars. You gave me yours."},
+      "j-hope":{gradient:"linear-gradient(145deg,rgba(248,113,113,.38),rgba(252,211,77,.28),rgba(167,139,250,.12))",accent:"#F87171",album:"Jack In The Box",cover:"☀️",quote:"Hope on the street. J-Hope on the beat."},
+      Jimin:{gradient:"linear-gradient(145deg,rgba(252,211,77,.32),rgba(244,114,182,.28),rgba(167,139,250,.18))",accent:"#FCD34D",album:"FACE",cover:"✨",quote:"Filter. It's all Jimin."},
+      V:{gradient:"linear-gradient(145deg,rgba(52,211,153,.32),rgba(96,165,250,.22),rgba(167,139,250,.14))",accent:"#34D399",album:"Layover",cover:"🌿",quote:"Wherever life plants you, bloom."},
+      JK:{gradient:"linear-gradient(145deg,rgba(167,139,250,.38),rgba(244,114,182,.18),rgba(96,165,250,.22))",accent:"#A78BFA",album:"Golden",cover:"⭐",quote:"Golden. Main character. End of discussion."}
+    };
+    function renderMyCard(){
+      let bias=(STATE.player?.bias||currentProfile?.bias||"OT7"),theme=BIAS_THEMES[bias]||BIAS_THEMES.OT7,todos=todoItems(),done=todos.filter(x=>x[1]).length,roulette=Object.entries(STATE.lockedShows).map(([id,v])=>`${TOUR.find(x=>x.id===id)?.city}: ${v.picks.join(" + ")}`).join("<br>")||"No Roulette locks yet.";
+      const signedIn = !!currentUser;
+      const guestCreate = !signedIn ? `<section class="panel glass"><h3>Sign in to save your card</h3><p class="mini-note">Your picks are saved for this session. Sign in to save them permanently and access them from any device.</p><div class="cta-row"><button class="btn pulse" onclick="openAuth()">Sign In / Join ARMY</button></div></section>` : '';
+      mycard.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge" style="background:rgba(244,114,182,.16);border-color:rgba(244,114,182,.32)">💜 Player</div><h2 class="section-title" style="--page:${theme.accent}">My Card</h2></div><p>Your Bangtan Arcade identity card. ${signedIn ? 'Picks save automatically across all your devices.' : 'Sign in to save picks permanently.'}</p></div>${guestCreate}
+<div class="profile-grid">
+<section style="position:relative;overflow:hidden;text-align:center;padding:32px 24px;min-height:480px;border-radius:34px;border:1px solid color-mix(in srgb,${theme.accent} 38%,rgba(255,255,255,.15));background:${theme.gradient};box-shadow:0 0 0 1px rgba(255,255,255,.14) inset,0 28px 80px rgba(0,0,0,.36),0 0 60px color-mix(in srgb,${theme.accent} 28%,transparent)">
+<div style="position:absolute;inset:-40%;background:linear-gradient(120deg,transparent 42%,rgba(255,255,255,.22),transparent 58%);animation:shimmer 4.4s var(--ease) infinite;pointer-events:none"></div>
+<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:999px;background:color-mix(in srgb,${theme.accent} 18%,rgba(255,255,255,.08));border:1px solid color-mix(in srgb,${theme.accent} 42%,rgba(255,255,255,.18));margin-bottom:18px"><span style="font-size:28px">${theme.cover}</span><span style="font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:${theme.accent}">${theme.album}</span></div>
+<div style="font-family:var(--display);font-size:clamp(22px,5vw,38px);color:white;line-height:1.1;text-shadow:0 0 22px color-mix(in srgb,${theme.accent} 65%,transparent);margin-bottom:4px;word-break:break-word;padding:0 8px">${html(STATE.player?.name||currentProfile?.army_name||"Guest ARMY")}</div>
+<div style="font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,${theme.accent} 90%,white);margin-bottom:6px">${html(bias)}${isAdmin?' · ADMIN':''}</div>
+<div style="font-size:12px;color:rgba(255,255,255,.55);font-weight:700;margin-bottom:18px">${done}/6 missions started${signedIn?' · synced 💜':' · session only'}</div>
+<div style="font-family:var(--display);font-size:clamp(72px,14vw,108px);line-height:1;color:white;text-shadow:0 0 28px color-mix(in srgb,${theme.accent} 75%,transparent)">#${communityRank()}</div>
+<div style="font-size:11px;color:var(--muted);font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:18px">Community guess rank</div>
+<div style="font-size:13px;font-style:italic;color:rgba(255,255,255,.72);max-width:280px;margin:0 auto 20px;line-height:1.5">"${theme.quote}"</div>
+<div class="stats" style="justify-content:center">${stat("Points",playerPoints())}${stat("Stock Votes",Object.keys(STATE.stockVote).length)}${stat("Bingo",STATE.bingoMarked.length)}</div>
+<button class="btn pulse" style="--page:${theme.accent};background:linear-gradient(135deg,color-mix(in srgb,${theme.accent} 70%,#1a0038),${theme.accent});margin-top:18px" onclick="shareCard()">Share My Card</button>
+${signedIn?`<button onclick="doSignOut()" style="display:block;margin:12px auto 0;color:rgba(255,255,255,.45);font-size:11px;font-weight:700">Sign Out</button>`:''}
+</section>
+<section class="panel glass"><h3 style="margin-bottom:14px">Your selections</h3><p style="margin-bottom:8px"><strong>Roulette locks:</strong><br><span style="color:var(--muted);font-size:13px">${roulette}</span></p><p style="margin-bottom:8px"><strong>Fantasy picks:</strong> ${Object.values(STATE.fantasyPicks).flat().filter(Boolean).length}</p><p style="margin-bottom:8px"><strong>Stock signals:</strong> ${Object.keys(STATE.stockVote).length}</p><p style="margin-bottom:18px"><strong>If They Play entries:</strong> ${Math.max(0,STATE.ifPlayEntries.length-6)}</p><h3 style="margin-bottom:10px">Missions</h3><div class="todo-list">${todos.map(t=>`<div class="todo ${t[1]?'done':''}"><span>${t[0]}</span><strong>${t[1]?'✓':'OPEN'}</strong></div>`).join("")}</div>
+${STATE.player||currentProfile?`<div style="margin-top:18px"><h3 style="margin-bottom:10px">Change bias</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${["OT7","RM","Jin","SUGA","j-hope","Jimin","V","JK"].map(b=>`<button class="pill" style="${(STATE.player?.bias||currentProfile?.bias)===b?`background:color-mix(in srgb,${BIAS_THEMES[b].accent} 28%,rgba(255,255,255,.08));border-color:${BIAS_THEMES[b].accent};color:white`:'opacity:.65'}" onclick="changeBias('${b}')">${b}</button>`).join('')}</div></div>`:``}
+</section></div></div>`;
+    }
+
+    async function changeBias(b){
+      if(STATE.player) STATE.player.bias=b;
+      if(currentProfile) {
+        currentProfile.bias=b;
+        await supa.from('profiles').update({bias:b}).eq('id',currentUser.id);
+      }
+      updateUserPill();
+      renderMyCard();
+      toast(b+' bias saved 💜');
+    }
+
+    function loginPlayer(){let name=(playerName.value||"").trim(),bias=(playerBias.value||"OT7").trim();if(!name)return toast("Enter an ARMY name for your card.");STATE.player={name,bias,joined:new Date().toLocaleDateString()};renderMyCard();toast(`Welcome to Bangtan Arcade, ${name}.`)}
+    function shareCard(){let text=`Bangtan Arcade photocard\n${STATE.player?.name||"Guest ARMY"} · rank #${communityRank()}\nPoints: ${playerPoints()}\nRoulette locks: ${Object.keys(STATE.lockedShows).length}\nStock votes: ${Object.keys(STATE.stockVote).length}\nBingo marks: ${STATE.bingoMarked.length}`;if(navigator.share){navigator.share({title:"My Bangtan Arcade Photocard",text}).catch(()=>{})}else if(navigator.clipboard){navigator.clipboard.writeText(text);toast("Photocard summary copied to clipboard.")}else{toast("Photocard summary ready to screenshot.")}}
+    function renderAccount(){let todos=todoItems(),done=todos.filter(x=>x[1]).length,roulette=Object.entries(STATE.lockedShows).map(([id,v])=>`${TOUR.find(x=>x.id===id)?.city}: ${v.picks.join(" + ")}`).join("<br>")||"No Roulette locks yet.";accountContent.innerHTML=`<div class="modal-head"><h2 id="accountTitle">My Bangtan Arcade Card</h2><button class="btn secondary" onclick="closeModal('accountModal')">Close</button></div>${!STATE.player?`<section class="panel glass"><h3>Create your player login</h3><p class="mini-note">This single-file prototype keeps your card in the current session. A real account database can be added next for cross-device login.</p><div class="form-grid two"><input id="playerName" placeholder="ARMY name" /><input id="playerBias" placeholder="Bias or OT7" /></div><div class="cta-row"><button class="btn" onclick="loginPlayer()">Create My Card</button></div></section>`:""}<div class="profile-grid"><section class="photocard"><div class="badge">Bangtan Arcade Player</div><h3>${html(STATE.player?.name||"Guest ARMY")}</h3><p>${html(STATE.player?.bias||"OT7")} · ${done}/6 tasks started</p><div class="big-rank">#${communityRank()}</div><p class="copy">Community guess rank</p><div class="stats">${stat("Points",playerPoints())}${stat("Stock Votes",Object.keys(STATE.stockVote).length)}${stat("Bingo Marks",STATE.bingoMarked.length)}</div><button class="btn pulse" onclick="shareCard()">Share Photocard</button></section><section class="panel glass"><h3>Your selections</h3><p><strong>Roulette:</strong><br>${roulette}</p><p><strong>Fantasy picks:</strong> ${Object.values(STATE.fantasyPicks).flat().filter(Boolean).length}</p><p><strong>Stock signals:</strong> ${Object.keys(STATE.stockVote).length}</p><p><strong>If They Play entries:</strong> ${Math.max(0,STATE.ifPlayEntries.length-6)}</p><h3 style="margin-top:18px">Still need to do</h3><div class="todo-list">${todos.map(t=>`<div class="todo ${t[1]?'done':''}"><span>${t[0]}</span><strong>${t[1]?'✓':'OPEN'}</strong></div>`).join("")}</div></section></div>`}
+    function closeModal(id){document.getElementById(id).classList.remove("open")}
+    function init(){tickerTrack.textContent=tickerText+tickerText;initNav();initDot();renderFalling();renderHome();renderRoulette();renderFantasy();renderStock();renderBingo();renderIfPlay();renderTracker();renderLeaderboard();renderVote();renderStream();renderMyCard();renderAdmin();applyCity("El Paso Day 1");updateNavProgress();initAuth();}
+    document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal("songModal");closeModal("revealModal");closeModal("accountModal");toggleMobile(false)}})
+    init();
+  </script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="transform:translate(-${scrollX}px,-${scrollY}px);transform-origin:top left">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>
