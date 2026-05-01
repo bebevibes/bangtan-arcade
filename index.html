@@ -220,7 +220,6 @@
     <section id="vote" class="section" data-color="#FCD34D"></section>
     <section id="stream" class="section" data-color="#22C55E"></section>
     <section id="mycard" class="section" data-color="#F472B6"></section>
-    <section id="admin" class="section" data-color="#E2E8F0"></section>
   </main>
   <footer>Made for ARMY delulu math · a hope and a prayer for Ddeang · and a completely reasonable craving for a BTS member hip thrust 💜</footer>
   <div id="songModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -241,14 +240,26 @@
     // ─── SUPABASE CLIENT ─────────────────────────────────────────────────────
     const SUPA_URL = 'https://hbsppddpqmcmunhqrwmb.supabase.co';
     const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhic3BwZGRwcW1jbXVuaHFyd21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MDIzMjEsImV4cCI6MjA5MzA3ODMyMX0.l-ipHonO5HYE45Aio8Yl0TLOKpbFEbD-KfRsjsTgosY';
-    const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+    let supa = null;
+    try { supa = supabase.createClient(SUPA_URL, SUPA_KEY); } catch(e) { console.warn('Supabase offline'); }
 
     // ─── AUTH STATE ──────────────────────────────────────────────────────────
     let currentUser = null;
     let currentProfile = null;
     let isAdmin = false;
+    const ADMIN_EMAIL = 'imavibeanywhere@gmail.com';
+    const ADMIN_URL = 'https://bangtan-arcade.netlify.app';
+
+    function isAdminUser(user, profile) {
+      return user?.email?.toLowerCase() === ADMIN_EMAIL || profile?.role === 'admin';
+    }
+
+    function siteRedirectUrl() {
+      return window.location.origin + window.location.pathname;
+    }
 
     async function initAuth() {
+      if(!supa) return;
       const { data: { session } } = await supa.auth.getSession();
       if (session?.user) await handleAuthUser(session.user);
       supa.auth.onAuthStateChange(async (_event, session) => {
@@ -265,30 +276,40 @@
 
     async function handleAuthUser(user) {
       currentUser = user;
-      // Fetch profile
-      const { data } = await supa.from('profiles').select('*').eq('id', user.id).single();
-      currentProfile = data;
-      isAdmin = data?.role === 'admin';
-      // Load game state from DB into STATE
-      const { data: gs } = await supa.from('game_state').select('*').eq('user_id', user.id).single();
-      if (gs) {
-        STATE.lockedShows = gs.locked_shows || {};
-        STATE.fantasyPicks = gs.fantasy_picks || {};
-        STATE.stockVote = gs.stock_vote || {};
-        STATE.bingoBoard = gs.bingo_board || null;
-        STATE.bingoMarked = gs.bingo_marked || [];
-        if (gs.if_play_entries?.length) STATE.ifPlayEntries = gs.if_play_entries;
-        STATE.player = { name: data?.army_name || user.email, bias: data?.bias || 'OT7', joined: data ? new Date(data.joined_at).toLocaleDateString() : '' };
+      currentProfile = null;
+      try {
+        const { data } = await supa.from('profiles').select('*').eq('id', user.id).single();
+        currentProfile = data || null;
+      } catch(e) { console.warn('profile fetch failed', e); }
+      currentProfile = currentProfile || {
+        army_name: user.user_metadata?.army_name || user.user_metadata?.name || user.email,
+        bias: user.user_metadata?.bias || 'OT7'
+      };
+      isAdmin = isAdminUser(user, currentProfile);
+      STATE.player = { name: currentProfile.army_name || user.email, bias: currentProfile.bias || 'OT7', joined: '' };
+      try {
+        const { data: gs } = await supa.from('game_state').select('*').eq('user_id', user.id).single();
+        if (gs) {
+          STATE.lockedShows = gs.locked_shows || {};
+          STATE.fantasyPicks = gs.fantasy_picks || {};
+          STATE.stockVote = gs.stock_vote || {};
+          STATE.bingoBoard = gs.bingo_board || null;
+          STATE.bingoMarked = gs.bingo_marked || [];
+          if (gs.if_play_entries?.length) STATE.ifPlayEntries = gs.if_play_entries;
+        }
+      } catch(e) { console.warn('game state fetch failed', e); }
+      try { updateUserPill(); } catch(e) {}
+      try { initNav(); } catch(e) {}
+      try { closeAuth(); } catch(e) { document.getElementById('authOverlay').style.display='none'; }
+      if (window.location.hash || window.location.search) {
+        history.replaceState(null, '', siteRedirectUrl());
       }
-      updateUserPill();
-      initNav(); // re-render nav so admin tab shows/hides correctly
-      closeAuth();
-      // Load live config from DB
-      await loadSiteConfig();
-      toast(`💜 Welcome back, ${currentProfile?.army_name || 'ARMY'}!`);
+      try { await loadSiteConfig(); } catch(e) { console.warn('config load failed', e); }
+      toast('💜 Welcome back, ' + (currentProfile?.army_name || 'ARMY') + '!');
     }
 
     async function loadSiteConfig() {
+      if(!supa) return;
       // Load ticker
       const { data: ticker } = await supa.from('site_config').select('value').eq('key','ticker_text').single();
       if (ticker?.value) { const t = typeof ticker.value === 'string' ? ticker.value : JSON.stringify(ticker.value).replace(/^"|"$/g,''); if(t) { tickerTrack.textContent = t + t; } }
@@ -369,7 +390,7 @@
     async function doGoogleSignIn() {
       const { error } = await supa.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.href }
+        options: { redirectTo: siteRedirectUrl() }
       });
       if (error) setAuthError(error.message);
     }
@@ -407,7 +428,7 @@
     let LIVE_SPOTIFY = null;
     let LIVE_APPLE = null;
     const MIC={RM:"#60A5FA",Jin:"#F472B6",SUGA:"#E2E8F0","j-hope":"#F87171",Jimin:"#FCD34D",V:"#34D399",JK:"#A78BFA"};
-    const NAV=[["home","Home","#A78BFA"],["roulette","Roulette","#A78BFA"],["fantasy","League","#A78BFA"],["stock","Stock Market","#34D399"],["bingo","Bingo","#F472B6"],["ifplay","If They Play","#F472B6"],["tracker","Song Vault","#E2E8F0"],["leaderboard","Leaderboard","#A78BFA"],["vote","Vote","#FCD34D"],["stream","Stream","#22C55E"],["mycard","My Card","#F472B6"],["admin","⚙️ Sponsors","#E2E8F0"]];
+    const NAV=[["home","Home","#A78BFA"],["roulette","Roulette","#A78BFA"],["fantasy","League","#A78BFA"],["stock","Stock Market","#34D399"],["bingo","Bingo","#F472B6"],["ifplay","If They Play","#F472B6"],["tracker","Song Vault","#E2E8F0"],["leaderboard","Leaderboard","#A78BFA"],["vote","Vote","#FCD34D"],["stream","Stream","#22C55E"],["mycard","My Card","#F472B6"],["admin","Admin","#FCD34D"]];
     const BOOSTS=[
       ["RM","Blueprint Boost","Strategy +3 when a likely or trending pick hits.",MIC.RM],
       ["Jin","Heart Pick Boost","Heart +5 when your personal wish pick comes true.",MIC.Jin],
@@ -484,326 +505,13 @@
           accent_color:SPONSORS[slot].color, updated_at:new Date().toISOString(), updated_by:currentUser.id
         }).eq("slot",slot);
       }
-      renderAdmin();renderHome();renderRoulette();renderFantasy();renderStock();renderBingo();renderIfPlay();renderTracker();renderLeaderboard();renderVote();renderStream();
+      renderHome();renderRoulette();renderFantasy();renderStock();renderBingo();renderIfPlay();renderTracker();renderLeaderboard();renderVote();renderStream();
       toast(`${slot} sponsor saved 💜`);
     }
     function ad(slot,fallbackColor){
       const sp=SPONSORS[slot]||{name:slot,tagline:"Sponsor this space.",logoUrl:"",linkUrl:"#",color:fallbackColor||"var(--page)"};
       const logoHtml=sp.logoUrl?`<img src="${sp.logoUrl}" alt="${sp.name} logo" style="max-height:40px;max-width:120px;border-radius:8px;object-fit:contain" onerror="this.style.display='none'">`:`<div class="logo-box">ADD LOGO</div>`;
       return `<aside class="ad-card glass" style="--ad:${sp.color};border-color:color-mix(in srgb,${sp.color} 30%,rgba(255,255,255,.12))"><small>supported by</small>${logoHtml}<h3>${sp.name}</h3><p>${sp.tagline}</p><a class="btn" style="--page:${sp.color}" href="${sp.linkUrl}" target="_blank" rel="noopener">Learn More ↗</a></aside>`;
-    }
-    // ─── ADMIN STATE ─────────────────────────────────────────────────────────
-    let adminTab = 'content';
-
-    function switchAdminTab(tab){
-      adminTab = tab;
-      renderAdmin();
-    }
-
-    function adminTabBtn(id, label, icon){
-      return `<button onclick="switchAdminTab('${id}')" style="padding:9px 16px;border-radius:999px;font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;transition:.2s var(--ease);${adminTab===id?'background:linear-gradient(135deg,#4c1d95,#8b5cf6);color:white;box-shadow:0 0 20px rgba(167,139,250,.4)':'color:rgba(255,255,255,.55);background:rgba(255,255,255,.06)'}">${icon} ${label}</button>`;
-    }
-
-    function adminField(label, id, value, placeholder='', type='text', fullWidth=false){
-      return `<div style="${fullWidth?'grid-column:1/-1':''}">
-        <label style="font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px">${label}</label>
-        <input id="${id}" type="${type}" value="${html(value)}" placeholder="${placeholder}" style="font-size:13px;padding:8px 12px;min-height:38px;width:100%" />
-      </div>`;
-    }
-
-    function adminSection(title, color, content){
-      return `<div class="panel glass" style="border-color:color-mix(in srgb,${color} 32%,rgba(255,255,255,.12));margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-          <div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color};flex-shrink:0"></div>
-          <h3 style="font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:${color}">${title}</h3>
-        </div>
-        ${content}
-      </div>`;
-    }
-
-    function renderAdmin(){
-      if(!isAdmin){ admin.innerHTML=`<div class="wrap"><div class="panel glass" style="text-align:center;padding:48px"><p style="color:var(--muted)">Admin access only. Sign in with your admin account.</p></div></div>`; return; }
-
-      const tabs = `<div style="display:flex;flex-wrap:wrap;gap:6px;background:rgba(255,255,255,.05);border-radius:999px;padding:5px;margin-bottom:28px">
-        ${adminTabBtn('content','Content','📝')}
-        ${adminTabBtn('songs','Songs & Shows','🎵')}
-        ${adminTabBtn('vote','Vote','🗳️')}
-        ${adminTabBtn('stream','Playlists','🎧')}
-        ${adminTabBtn('sponsors','Sponsors','💼')}
-      </div>`;
-
-      let body = '';
-
-      // ── CONTENT TAB ──────────────────────────────────────────────────────
-      if(adminTab === 'content'){
-        body = `
-        ${adminSection('Scrolling Ticker Banner','#A78BFA',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:700">This is the purple banner at the very top of the page. Use · to separate items. Emojis welcome.</p>
-          <textarea id="adm_ticker" style="width:100%;min-height:90px;border:1px solid rgba(216,180,254,.28);border-radius:14px;background:rgba(255,255,255,.08);padding:10px 14px;color:white;font-size:13px;font-family:var(--body);resize:vertical">${tickerTrack.textContent.slice(0,tickerTrack.textContent.length/2)}</textarea>
-          <button class="btn" style="margin-top:10px" onclick="adminSaveTicker()">Save Ticker</button>
-        `)}
-        ${adminSection('Site Stats Display','#60A5FA',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:700">Numbers shown on the home page stats bar.</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-            ${adminField('Shows Remaining','adm_shows_remaining','67','67')}
-            ${adminField('Slots Left','adm_slots_left','134','134')}
-          </div>
-          <button class="btn" style="margin-top:12px" onclick="adminSaveStats()">Save Stats</button>
-        `)}`;
-      }
-
-      // ── SONGS & SHOWS TAB ────────────────────────────────────────────────
-      if(adminTab === 'songs'){
-        const retiredList = STATE.retiredSongs.join('\n');
-        body = `
-        ${adminSection('Retire a Song After a Show','#F472B6',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:700">After each show night, add the two songs that were played. One song name per line, exactly as it appears in the song pool. They will be locked out of all games immediately.</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-            ${adminField('Song 1','adm_retire1','','e.g. Blue & Grey')}
-            ${adminField('Song 2','adm_retire2','','e.g. Euphoria')}
-          </div>
-          <button class="btn" style="--page:#F472B6;background:linear-gradient(135deg,#831843,#F472B6)" onclick="adminRetireSongs()">Retire These Songs</button>
-        `)}
-        ${adminSection('All Retired Songs','#E2E8F0',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:700">Full list. Edit directly if you need to fix a name or un-retire a song. One per line.</p>
-          <textarea id="adm_retired" style="width:100%;min-height:200px;border:1px solid rgba(216,180,254,.28);border-radius:14px;background:rgba(255,255,255,.08);padding:10px 14px;color:white;font-size:12px;font-family:monospace;resize:vertical">${retiredList}</textarea>
-          <button class="btn" style="margin-top:10px" onclick="adminSaveRetired()">Save Retired List</button>
-        `)}
-        ${adminSection('Mark a Show Complete','#34D399',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:700">Select the show that just happened, enter the two songs that played, and mark it complete. This locks the show in Fantasy League and adds results to the Song Vault.</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-            <div><label style="font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px">Show</label>
-            <select id="adm_show_complete" style="font-size:13px;padding:8px 12px;min-height:38px;width:100%">
-              ${TOUR.filter(x=>x.status==='open').map(x=>`<option value="${x.id}">${x.city} · ${x.date}</option>`).join('')}
-            </select></div>
-            ${adminField('Song 1 Played','adm_show_song1','','Song name exactly')}
-            ${adminField('Song 2 Played','adm_show_song2','','Song name exactly')}
-          </div>
-          <button class="btn" style="--page:#34D399;background:linear-gradient(135deg,#14532d,#34D399)" onclick="adminCompleteShow()">Mark Show Complete</button>
-        `)}`;
-      }
-
-      // ── VOTE TAB ─────────────────────────────────────────────────────────
-      if(adminTab === 'vote'){
-        body = `
-        ${adminSection('Current Vote Categories','#FCD34D',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;font-weight:700">These are the active award categories showing on the Vote page. Edit or deactivate old ones, add new ones when a new award show opens voting.</p>
-          <div id="adm_vote_list" style="display:grid;gap:10px">
-            ${(LIVE_VOTE_CATEGORIES||AMA_AWARDS_STATIC).map((a,i)=>`
-            <div class="panel glass" style="padding:16px;border-color:color-mix(in srgb,${a.accent_color||a.color} 30%,rgba(255,255,255,.1))">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-                <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Show Name</label><input id="adm_v_show_${i}" value="${html(a.show_name||'2026 American Music Awards')}" style="font-size:12px;padding:6px 10px;min-height:32px;width:100%" /></div>
-                <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Category</label><input id="adm_v_cat_${i}" value="${html(a.category)}" style="font-size:12px;padding:6px 10px;min-height:32px;width:100%" /></div>
-                <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Vote URL</label><input id="adm_v_url_${i}" value="${html(a.vote_url||a.voteUrl)}" style="font-size:12px;padding:6px 10px;min-height:32px;width:100%" /></div>
-                <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Nominees (comma separated)</label><input id="adm_v_nom_${i}" value="${html(Array.isArray(a.nominees)?a.nominees.join(', '):a.nominees)}" style="font-size:12px;padding:6px 10px;min-height:32px;width:100%" /></div>
-              </div>
-              <button class="btn" style="--page:#FCD34D;background:linear-gradient(135deg,#713f12,#FCD34D);font-size:11px;padding:7px 14px;min-height:32px" onclick="adminSaveVoteCategory(${i})">Save</button>
-              ${a.id?`<button class="btn secondary" style="font-size:11px;padding:7px 14px;min-height:32px;margin-left:8px;color:#F87171;border-color:rgba(248,113,113,.3)" onclick="adminToggleVote('${a.id}',${a.show_active!==false})">${a.show_active!==false?'Deactivate':'Activate'}</button>`:''}
-            </div>`).join('')}
-          </div>
-        `)}
-        ${adminSection('Add New Vote Category','#22C55E',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:700">When a new award show opens voting, add it here.</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-            ${adminField('Award Show Name','adm_new_show','','e.g. 2026 MTV VMAs')}
-            ${adminField('Show Date','adm_new_date','','e.g. August 31, 2026')}
-            ${adminField('Category','adm_new_cat','','e.g. Video of the Year')}
-            ${adminField('Vote URL','adm_new_url','','https://vote.mtv.com/...')}
-            ${adminField('BTS Nominee Name','adm_new_bts','','Exactly as it appears on ballot e.g. BTS')}
-            ${adminField('All Nominees (comma separated)','adm_new_noms','','BTS, Taylor Swift, ...',  'text', true)}
-          </div>
-          <button class="btn" style="--page:#22C55E;background:linear-gradient(135deg,#14532d,#22C55E)" onclick="adminAddVoteCategory()">Add Category</button>
-        `)}`;
-      }
-
-      // ── PLAYLISTS TAB ─────────────────────────────────────────────────────
-      if(adminTab === 'stream'){
-        const spot = LIVE_SPOTIFY || [];
-        const appl = LIVE_APPLE || [];
-        body = `
-        ${adminSection('Spotify Playlists','#1DB954',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:700">Up to 3 Spotify playlists shown on the Stream page. Paste the full Spotify playlist URL.</p>
-          ${[0,1,2].map(i=>`
-          <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:8px;margin-bottom:10px;align-items:end">
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Playlist Name</label><input id="adm_sp_name_${i}" value="${html(spot[i]?.name||'')}" placeholder="e.g. BTS ARMY Megamix" style="font-size:13px;padding:8px 12px;min-height:36px;width:100%" /></div>
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Spotify URL</label><input id="adm_sp_url_${i}" value="${html(spot[i]?.url||'')}" placeholder="https://open.spotify.com/playlist/..." style="font-size:13px;padding:8px 12px;min-height:36px;width:100%" /></div>
-            <div style="grid-column:1/-1"><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Description</label><input id="adm_sp_desc_${i}" value="${html(spot[i]?.desc||'')}" placeholder="One-line description" style="font-size:13px;padding:8px 12px;min-height:36px;width:100%" /></div>
-          </div>`).join('<hr style="border:0;border-top:1px solid rgba(255,255,255,.08);margin:4px 0 12px">')}
-          <button class="btn" style="--page:#1DB954;background:linear-gradient(135deg,#14532d,#1DB954);margin-top:4px" onclick="adminSaveSpotify()">Save Spotify Playlists</button>
-        `)}
-        ${adminSection('Apple Music Playlists','#FC3C44',`
-          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:700">Up to 3 Apple Music playlists shown on the Stream page.</p>
-          ${[0,1,2].map(i=>`
-          <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:8px;margin-bottom:10px;align-items:end">
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Playlist Name</label><input id="adm_ap_name_${i}" value="${html(appl[i]?.name||'')}" placeholder="e.g. BTS Essentials" style="font-size:13px;padding:8px 12px;min-height:36px;width:100%" /></div>
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Apple Music URL</label><input id="adm_ap_url_${i}" value="${html(appl[i]?.url||'')}" placeholder="https://music.apple.com/..." style="font-size:13px;padding:8px 12px;min-height:36px;width:100%" /></div>
-            <div style="grid-column:1/-1"><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Description</label><input id="adm_ap_desc_${i}" value="${html(appl[i]?.desc||'')}" placeholder="One-line description" style="font-size:13px;padding:8px 12px;min-height:36px;width:100%" /></div>
-          </div>`).join('<hr style="border:0;border-top:1px solid rgba(255,255,255,.08);margin:4px 0 12px">')}
-          <button class="btn" style="--page:#FC3C44;background:linear-gradient(135deg,#7f1d1d,#FC3C44);margin-top:4px" onclick="adminSaveApple()">Save Apple Music Playlists</button>
-        `)}`;
-      }
-
-      // ── SPONSORS TAB ──────────────────────────────────────────────────────
-      if(adminTab === 'sponsors'){
-        const slots = Object.keys(SPONSORS);
-        body = `<div style="display:grid;gap:14px">
-        ${slots.map(slot=>{const sp=SPONSORS[slot];return`
-        <div class="panel glass" style="padding:18px;border-color:color-mix(in srgb,${sp.color} 32%,rgba(255,255,255,.12))">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <div style="width:8px;height:8px;border-radius:50%;background:${sp.color};box-shadow:0 0 8px ${sp.color}"></div>
-            <h3 style="font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:${sp.color}">${slot.replace(/_/g,' ')}</h3>
-            ${sp.logoUrl?`<img src="${sp.logoUrl}" alt="" style="height:24px;border-radius:4px;margin-left:auto;object-fit:contain" onerror="this.style.display='none'">`:'<span style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:700">no logo</span>'}
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Brand Name</label><input id="sp_name_${slot}" value="${html(sp.name)}" style="font-size:12px;padding:6px 10px;min-height:32px;width:100%" /></div>
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Tagline</label><input id="sp_tag_${slot}" value="${html(sp.tagline)}" style="font-size:12px;padding:6px 10px;min-height:32px;width:100%" /></div>
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Logo URL</label><input id="sp_logo_${slot}" value="${html(sp.logoUrl)}" placeholder="https://...logo.png" style="font-size:12px;padding:6px 10px;min-height:32px;width:100%" /></div>
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Link URL</label><input id="sp_link_${slot}" value="${html(sp.linkUrl)}" placeholder="https://sponsor.com" style="font-size:12px;padding:6px 10px;min-height:32px;width:100%" /></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div><label style="font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px">Color</label><input id="sp_color_${slot}" value="${html(sp.color)}" style="font-size:12px;padding:6px 10px;min-height:32px;width:120px" /></div>
-            <button class="btn" style="--page:${sp.color};background:linear-gradient(135deg,color-mix(in srgb,${sp.color} 50%,#0a0020),${sp.color});margin-top:16px;font-size:11px;padding:8px 16px" onclick="saveSponsor('${slot}')">Save</button>
-          </div>
-        </div>`}).join('')}</div>`;
-      }
-
-      admin.innerHTML = `<div class="wrap">
-        <div class="page-head"><div>
-          <div class="badge" style="background:rgba(226,232,240,.12);border-color:rgba(226,232,240,.28)">⚙️ Admin</div>
-          <h2 style="font-size:clamp(36px,6vw,72px)">Admin Panel</h2>
-        </div><p>Everything you need to keep the arcade current. Changes save to the database and go live immediately for all users.</p></div>
-        ${tabs}
-        ${body}
-      </div>`;
-    }
-
-    // ─── ADMIN SAVE FUNCTIONS ────────────────────────────────────────────────
-    const AMA_AWARDS_STATIC = AMA_AWARDS; // keep reference before LIVE overrides
-
-    async function adminSaveTicker(){
-      const val = document.getElementById('adm_ticker')?.value.trim();
-      if(!val) return toast('Ticker text cannot be empty.');
-      const full = val.endsWith(' · ') ? val : val + ' · ';
-      tickerTrack.textContent = full + full;
-      if(isAdmin){ await supa.from('site_config').upsert({key:'ticker_text',value:JSON.stringify(full),updated_at:new Date().toISOString(),updated_by:currentUser.id}); }
-      toast('Ticker saved and live 💜');
-    }
-
-    async function adminSaveStats(){
-      const remaining = document.getElementById('adm_shows_remaining')?.value.trim();
-      const slots = document.getElementById('adm_slots_left')?.value.trim();
-      if(isAdmin){ await supa.from('site_config').upsert({key:'show_stats',value:JSON.stringify({remaining,slots}),updated_at:new Date().toISOString(),updated_by:currentUser.id}); }
-      renderHome();
-      toast('Stats updated 💜');
-    }
-
-    async function adminRetireSongs(){
-      const s1 = document.getElementById('adm_retire1')?.value.trim();
-      const s2 = document.getElementById('adm_retire2')?.value.trim();
-      if(!s1) return toast('Enter at least one song name.');
-      if(s1) STATE.retiredSongs.push(s1);
-      if(s2) STATE.retiredSongs.push(s2);
-      STATE.retiredSongs = [...new Set(STATE.retiredSongs)];
-      if(isAdmin){ await supa.from('site_config').upsert({key:'retired_songs',value:STATE.retiredSongs,updated_at:new Date().toISOString(),updated_by:currentUser.id}); }
-      renderTracker(); renderHome();
-      toast(`${[s1,s2].filter(Boolean).join(' + ')} retired from the song pool 🔒`);
-      switchAdminTab('songs');
-    }
-
-    async function adminSaveRetired(){
-      const lines = document.getElementById('adm_retired')?.value.split('\n').map(x=>x.trim()).filter(Boolean);
-      if(!lines?.length) return toast('Cannot save empty retired list.');
-      STATE.retiredSongs = lines;
-      if(isAdmin){ await supa.from('site_config').upsert({key:'retired_songs',value:lines,updated_at:new Date().toISOString(),updated_by:currentUser.id}); }
-      renderTracker(); renderHome();
-      toast('Retired songs list saved 💜');
-    }
-
-    async function adminCompleteShow(){
-      const showId = document.getElementById('adm_show_complete')?.value;
-      const s1 = document.getElementById('adm_show_song1')?.value.trim();
-      const s2 = document.getElementById('adm_show_song2')?.value.trim();
-      if(!showId||!s1||!s2) return toast('Select a show and enter both songs.');
-      const show = TOUR.find(x=>x.id===showId);
-      if(!show) return;
-      show.status = 'completed';
-      show.randomSongs = [s1,s2];
-      if(s1&&!STATE.retiredSongs.includes(s1)) STATE.retiredSongs.push(s1);
-      if(s2&&!STATE.retiredSongs.includes(s2)) STATE.retiredSongs.push(s2);
-      if(isAdmin){
-        await supa.from('site_config').upsert({key:'retired_songs',value:STATE.retiredSongs,updated_at:new Date().toISOString(),updated_by:currentUser.id});
-        const existing = (await supa.from('site_config').select('value').eq('key','show_results').single()).data?.value||{};
-        existing[showId]=[s1,s2];
-        await supa.from('site_config').upsert({key:'show_results',value:existing,updated_at:new Date().toISOString(),updated_by:currentUser.id});
-      }
-      renderTracker(); renderFantasy(); renderHome();
-      toast(`${show.city} marked complete · ${s1} + ${s2} retired 🔒`);
-      switchAdminTab('songs');
-    }
-
-    async function adminSaveVoteCategory(i){
-      const cats = LIVE_VOTE_CATEGORIES || AMA_AWARDS_STATIC;
-      const cat = cats[i];
-      if(!cat?.id) return toast('Cannot edit static categories — add a new one instead.');
-      const updates = {
-        show_name: document.getElementById(`adm_v_show_${i}`)?.value.trim(),
-        category: document.getElementById(`adm_v_cat_${i}`)?.value.trim(),
-        vote_url: document.getElementById(`adm_v_url_${i}`)?.value.trim(),
-        nominees: document.getElementById(`adm_v_nom_${i}`)?.value.split(',').map(x=>x.trim()).filter(Boolean)
-      };
-      await supa.from('vote_categories').update(updates).eq('id',cat.id);
-      Object.assign(cat, updates);
-      renderVote();
-      toast('Vote category saved 💜');
-    }
-
-    async function adminToggleVote(id, currentlyActive){
-      await supa.from('vote_categories').update({show_active:!currentlyActive}).eq('id',id);
-      const cat = LIVE_VOTE_CATEGORIES?.find(x=>x.id===id);
-      if(cat) cat.show_active = !currentlyActive;
-      renderVote(); renderAdmin();
-      toast(`Category ${currentlyActive?'deactivated':'activated'} 💜`);
-    }
-
-    async function adminAddVoteCategory(){
-      const newCat = {
-        show_name: document.getElementById('adm_new_show')?.value.trim(),
-        show_date: document.getElementById('adm_new_date')?.value.trim(),
-        category: document.getElementById('adm_new_cat')?.value.trim(),
-        vote_url: document.getElementById('adm_new_url')?.value.trim(),
-        bts_nominee: document.getElementById('adm_new_bts')?.value.trim()||'BTS',
-        nominees: document.getElementById('adm_new_noms')?.value.split(',').map(x=>x.trim()).filter(Boolean),
-        accent_color:'#FCD34D', show_active:true, sort_order:(LIVE_VOTE_CATEGORIES?.length||3)+1
-      };
-      if(!newCat.show_name||!newCat.category||!newCat.vote_url) return toast('Show name, category, and vote URL are all required.');
-      const {data} = await supa.from('vote_categories').insert(newCat).select().single();
-      if(data){ LIVE_VOTE_CATEGORIES = [...(LIVE_VOTE_CATEGORIES||[]), data]; }
-      renderVote(); switchAdminTab('vote');
-      toast('New vote category added 💜');
-    }
-
-    async function adminSaveSpotify(){
-      const playlists = [0,1,2].map(i=>({
-        name: document.getElementById(`adm_sp_name_${i}`)?.value.trim(),
-        url: document.getElementById(`adm_sp_url_${i}`)?.value.trim(),
-        desc: document.getElementById(`adm_sp_desc_${i}`)?.value.trim()
-      })).filter(p=>p.name&&p.url);
-      LIVE_SPOTIFY = playlists;
-      if(isAdmin){ await supa.from('site_config').upsert({key:'spotify_playlists',value:playlists,updated_at:new Date().toISOString(),updated_by:currentUser.id}); }
-      renderStream();
-      toast('Spotify playlists saved 💜');
-    }
-
-    async function adminSaveApple(){
-      const playlists = [0,1,2].map(i=>({
-        name: document.getElementById(`adm_ap_name_${i}`)?.value.trim(),
-        url: document.getElementById(`adm_ap_url_${i}`)?.value.trim(),
-        desc: document.getElementById(`adm_ap_desc_${i}`)?.value.trim()
-      })).filter(p=>p.name&&p.url);
-      LIVE_APPLE = playlists;
-      if(isAdmin){ await supa.from('site_config').upsert({key:'apple_playlists',value:playlists,updated_at:new Date().toISOString(),updated_by:currentUser.id}); }
-      renderStream();
-      toast('Apple Music playlists saved 💜');
     }
     function instruction(title,body,points){return `<section class="how glass"><h3>${title}</h3><p>${body}</p>${points?`<p class="mini-note">${points}</p>`:""}</section>`}
     function nextOpen(){return TOUR.find(x=>x.status==="open")}
@@ -821,11 +529,13 @@
     function cycleRecordSong(){recordSongIndex=(recordSongIndex+1)%recordSongs.length;document.getElementById('recordTitle').textContent=recordSongs[recordSongIndex];if(recordPlaying){window._recordTimer=setTimeout(cycleRecordSong,4800+Math.random()*2000)}}
     // Nav progress
     function updateNavProgress(){const tasks=[Object.keys(STATE.lockedShows).length>0,Object.values(STATE.fantasyPicks).flat().filter(Boolean).length>0,Object.keys(STATE.stockVote).length>0,!!STATE.bingoBoard,STATE.ifPlayEntries.length>6,!!STATE.player];const pct=Math.round(tasks.filter(Boolean).length/tasks.length*100);const fill=document.getElementById('navProgressFill');if(fill)fill.style.width=pct+'%'}
-    function showSection(id){document.querySelectorAll(".section").forEach(s=>s.classList.toggle("active",s.id===id));document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.target===id));document.documentElement.style.setProperty("--page",document.getElementById(id)?.dataset.color||MIC.JK);toggleMobile(false);window.scrollTo({top:0,behavior:"smooth"});playBlip(520);if(id==="stock")renderStock();if(id==="tracker")renderTracker();if(id==="leaderboard")renderLeaderboard();if(id==="mycard")renderMyCard();if(id==="admin")renderAdmin();updateNavProgress()}
+    function showSection(id){document.querySelectorAll(".section").forEach(s=>s.classList.toggle("active",s.id===id));document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.target===id));document.documentElement.style.setProperty("--page",document.getElementById(id)?.dataset.color||MIC.JK);toggleMobile(false);window.scrollTo({top:0,behavior:"smooth"});playBlip(520);if(id==="stock")renderStock();if(id==="tracker")renderTracker();if(id==="leaderboard")renderLeaderboard();if(id==="mycard")renderMyCard();updateNavProgress()}
     function toggleMobile(open){mobileMenu.classList.toggle("open",open);mobileMenu.setAttribute("aria-hidden",!open)}
     function initNav(){
       const visibleNav = NAV.filter(n => n[0] !== 'admin' || isAdmin);
-      let h=visibleNav.map(n=>`<button class="tab ${n[0]==='home'?'active':''}" data-target="${n[0]}" onclick="showSection('${n[0]}')">${n[1]}</button>`).join("");
+      let h=visibleNav.map(n=>n[0]==='admin'
+        ? `<button class="tab" data-target="admin" onclick="window.open('${ADMIN_URL}','_blank','noopener')">${n[1]}</button>`
+        : `<button class="tab ${n[0]==='home'?'active':''}" data-target="${n[0]}" onclick="showSection('${n[0]}')">${n[1]}</button>`).join("");
       navTabs.innerHTML=h;mobileList.innerHTML=h;
     }
     function initDot(){let colors=Object.values(MIC),i=0;setInterval(()=>{i=(i+1)%colors.length;document.documentElement.style.setProperty("--dot",colors[i])},1600)}
@@ -887,8 +597,539 @@
 
     const SPOTIFY_PLAYLIST={name:"BTS ARMY Playlist",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1",embedUrl:"https://open.spotify.com/embed/playlist/37i9dQZF1DX9tPFwDMOaN1"};
     const APPLE_PLAYLIST={name:"BTS Essentials",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0"};
-    function renderStream(){
-      const spotPlaylists = LIVE_SPOTIFY && LIVE_SPOTIFY.length ? LIVE_SPOTIFY : [{name:'BTS ARMY Megamix',url:'https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1',desc:'Full rotation — all eras, all members'},{name:'BTS Tour Season 2026',url:'https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1',desc:'Tour era picks + ARIRANG album'},{name:'BTS Deep Cuts',url:'https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1',desc:'B-sides, solos, and hidden gems'}];
-      const applPlaylists = LIVE_APPLE && LIVE_APPLE.length ? LIVE_APPLE : [{name:'BTS Essentials',url:'https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0',desc:'The non-negotiable BTS playlist'},{name:'BTS Tour Night',url:'https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0',desc:'Set-list energy from start to finish'},{name:'BTS Solo Spotlight',url:'https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0',desc:'All 7 members solo work in one place'}];
-      stream.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge" style="background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.32)">🎧 Stream</div><h2 class="section-title" style="--page:#22C55E">Stream</h2></div><p>Keep BTS charting. Every stream, every play, every loop — it all adds up.</p></div>${instruction("Why streaming matters","Chart positions, eligibility windows, and award voting weight are all tied to stream numbers. Every play in the first 24 hours of a release is critical. Save these playlists, keep them queued, and stream on repeat.","Tip: Play on full volume, logged into your account. Muted streams do not count on most platforms.")}<div class="panel glass" style="padding:28px"><h3 style="font-size:24px;margin-bottom:4px;color:#1DB954">🎵 Spotify</h3><p style="color:var(--muted);font-size:13px;font-weight:900;margin-bottom:18px;text-transform:uppercase;letter-spacing:.1em">Bebe's BTS Playlists</p><div style="display:flex;flex-direction:column;gap:12px">${spotPlaylists.map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-radius:18px;background:rgba(29,185,84,.10);border:1px solid rgba(29,185,84,.28)"><div style="min-width:0"><div style="font-weight:900;color:white;font-size:15px">${html(p.name)}</div><div style="color:var(--muted);font-size:12px;font-weight:700;margin-top:2px">${html(p.desc||'')}</div></div><a class="btn" style="--page:#1DB954;background:linear-gradient(135deg,#1a9c47,#1DB954);white-space:nowrap;flex-shrink:0" href="${p.url}" target="_blank" rel="noopener" onclick="toast('Opening Spotify...')">Open ↗</a></div>`).join("")}</div></div><div class="panel glass" style="padding:28px;margin-top:0"><h3 style="font-size:24px;margin-bottom:4px;color:#FC3C44">🍎 Apple Music</h3><p style="color:var(--muted);font-size:13px;font-weight:900;margin-bottom:18px;text-transform:uppercase;letter-spacing:.1em">Bebe's BTS Playlists</p><div style="display:flex;flex-direction:column;gap:12px">${applPlaylists.map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-radius:18px;background:rgba(252,60,68,.10);border:1px solid rgba(252,60,68,.28)"><div style="min-width:0"><div style="font-weight:900;color:white;font-size:15px">${html(p.name)}</div><div style="color:var(--muted);font-size:12px;font-weight:700;margin-top:2px">${html(p.desc||'')}</div></div><a class="btn" style="--page:#FC3C44;background:linear-gradient(135deg,#c42d33,#FC3C44);white-space:nowrap;flex-shrink:0" href="${p.url}" target="_blank" rel="noopener" onclick="toast('Opening Apple Music...')">Open ↗</a></div>`).join("")}</div></div>${ad("stream")}</div>`;
+    function renderStream(){stream.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge" style="background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.32)">🎧 Stream</div><h2 class="section-title" style="--page:#22C55E">Stream</h2></div><p>Keep BTS charting. Every stream, every play, every loop — it all adds up.</p></div>${instruction("Why streaming matters","Chart positions, eligibility windows, and award voting weight are all tied to stream numbers. Every play in the first 24 hours of a release is critical. Save these playlists, keep them queued, and stream on repeat.","Tip: Play on full volume, logged into your account. Muted streams do not count on most platforms.")}<div class="panel glass" style="padding:28px"><h3 style="font-size:24px;margin-bottom:4px;color:#1DB954">🎵 Spotify</h3><p style="color:var(--muted);font-size:13px;font-weight:900;margin-bottom:18px;text-transform:uppercase;letter-spacing:.1em">Bebe's BTS Playlists</p><div style="display:flex;flex-direction:column;gap:12px">${[{name:"BTS ARMY Megamix",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1",desc:"Full rotation — all eras, all members"},{name:"BTS Tour Season 2026",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1",desc:"Tour era picks + ARIRANG album"},{name:"BTS Deep Cuts",url:"https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1",desc:"B-sides, solos, and hidden gems"}].map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-radius:18px;background:rgba(29,185,84,.10);border:1px solid rgba(29,185,84,.28)"><div style="min-width:0"><div style="font-weight:900;color:white;font-size:15px">${p.name}</div><div style="color:var(--muted);font-size:12px;font-weight:700;margin-top:2px">${p.desc}</div></div><a class="btn" style="--page:#1DB954;background:linear-gradient(135deg,#1a9c47,#1DB954);white-space:nowrap;flex-shrink:0" href="${p.url}" target="_blank" rel="noopener" onclick="toast('Opening Spotify...')">Open ↗</a></div>`).join("")}</div></div><div class="panel glass" style="padding:28px;margin-top:0"><h3 style="font-size:24px;margin-bottom:4px;color:#FC3C44">🍎 Apple Music</h3><p style="color:var(--muted);font-size:13px;font-weight:900;margin-bottom:18px;text-transform:uppercase;letter-spacing:.1em">Bebe's BTS Playlists</p><div style="display:flex;flex-direction:column;gap:12px">${[{name:"BTS Essentials",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0",desc:"The non-negotiable BTS playlist"},{name:"BTS Tour Night",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0",desc:"Set-list energy from start to finish"},{name:"BTS Solo Spotlight",url:"https://music.apple.com/us/playlist/bts-essentials/pl.97e8e1f5b2e042d29a4b1e8f0f93c1c0",desc:"All 7 members' solo work in one place"}].map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-radius:18px;background:rgba(252,60,68,.10);border:1px solid rgba(252,60,68,.28)"><div style="min-width:0"><div style="font-weight:900;color:white;font-size:15px">${p.name}</div><div style="color:var(--muted);font-size:12px;font-weight:700;margin-top:2px">${p.desc}</div></div><a class="btn" style="--page:#FC3C44;background:linear-gradient(135deg,#c42d33,#FC3C44);white-space:nowrap;flex-shrink:0" href="${p.url}" target="_blank" rel="noopener" onclick="toast('Opening Apple Music...')">Open ↗</a></div>`).join("")}</div></div>${ad("stream")}</div>`}
+
+    const BIAS_THEMES={
+      OT7:{gradient:"linear-gradient(145deg,rgba(167,139,250,.38),rgba(244,114,182,.22),rgba(96,165,250,.28))",accent:"#A78BFA",album:"BE",cover:"💜",quote:"OT7 forever. All 7 or nothing."},
+      RM:{gradient:"linear-gradient(145deg,rgba(96,165,250,.38),rgba(167,139,250,.22),rgba(52,211,153,.12))",accent:"#60A5FA",album:"Indigo",cover:"📘",quote:"Life goes on. Let it."},
+      Jin:{gradient:"linear-gradient(145deg,rgba(244,114,182,.38),rgba(252,211,77,.22),rgba(255,255,255,.10))",accent:"#F472B6",album:"The Astronaut",cover:"🌸",quote:"Worldwide handsome. No debate."},
+      SUGA:{gradient:"linear-gradient(145deg,rgba(226,232,240,.24),rgba(167,139,250,.22),rgba(96,165,250,.12))",accent:"#E2E8F0",album:"D-DAY",cover:"🖤",quote:"I wanted to show you my scars. You gave me yours."},
+      "j-hope":{gradient:"linear-gradient(145deg,rgba(248,113,113,.38),rgba(252,211,77,.28),rgba(167,139,250,.12))",accent:"#F87171",album:"Jack In The Box",cover:"☀️",quote:"Hope on the street. J-Hope on the beat."},
+      Jimin:{gradient:"linear-gradient(145deg,rgba(252,211,77,.32),rgba(244,114,182,.28),rgba(167,139,250,.18))",accent:"#FCD34D",album:"FACE",cover:"✨",quote:"Filter. It's all Jimin."},
+      V:{gradient:"linear-gradient(145deg,rgba(52,211,153,.32),rgba(96,165,250,.22),rgba(167,139,250,.14))",accent:"#34D399",album:"Layover",cover:"🌿",quote:"Wherever life plants you, bloom."},
+      JK:{gradient:"linear-gradient(145deg,rgba(167,139,250,.38),rgba(244,114,182,.18),rgba(96,165,250,.22))",accent:"#A78BFA",album:"Golden",cover:"⭐",quote:"Golden. Main character. End of discussion."}
+    };
+    function renderMyCard(){
+      let bias=(STATE.player?.bias||currentProfile?.bias||"OT7"),theme=BIAS_THEMES[bias]||BIAS_THEMES.OT7,todos=todoItems(),done=todos.filter(x=>x[1]).length,roulette=Object.entries(STATE.lockedShows).map(([id,v])=>`${TOUR.find(x=>x.id===id)?.city}: ${v.picks.join(" + ")}`).join("<br>")||"No Roulette locks yet.";
+      const signedIn = !!currentUser;
+      const guestCreate = !signedIn ? `<section class="panel glass"><h3>Sign in to save your card</h3><p class="mini-note">Your picks are saved for this session. Sign in to save them permanently and access them from any device.</p><div class="cta-row"><button class="btn pulse" onclick="openAuth()">Sign In / Join ARMY</button></div></section>` : '';
+      mycard.innerHTML=`<div class="wrap"><div class="page-head"><div><div class="badge" style="background:rgba(244,114,182,.16);border-color:rgba(244,114,182,.32)">💜 Player</div><h2 class="section-title" style="--page:${theme.accent}">My Card</h2></div><p>Your Bangtan Arcade identity card. ${signedIn ? 'Picks save automatically across all your devices.' : 'Sign in to save picks permanently.'}</p></div>${guestCreate}
+<div class="profile-grid">
+<section style="position:relative;overflow:hidden;text-align:center;padding:32px 24px;min-height:480px;border-radius:34px;border:1px solid color-mix(in srgb,${theme.accent} 38%,rgba(255,255,255,.15));background:${theme.gradient};box-shadow:0 0 0 1px rgba(255,255,255,.14) inset,0 28px 80px rgba(0,0,0,.36),0 0 60px color-mix(in srgb,${theme.accent} 28%,transparent)">
+<div style="position:absolute;inset:-40%;background:linear-gradient(120deg,transparent 42%,rgba(255,255,255,.22),transparent 58%);animation:shimmer 4.4s var(--ease) infinite;pointer-events:none"></div>
+<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:999px;background:color-mix(in srgb,${theme.accent} 18%,rgba(255,255,255,.08));border:1px solid color-mix(in srgb,${theme.accent} 42%,rgba(255,255,255,.18));margin-bottom:18px"><span style="font-size:28px">${theme.cover}</span><span style="font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:${theme.accent}">${theme.album}</span></div>
+<div style="font-family:var(--display);font-size:clamp(22px,5vw,38px);color:white;line-height:1.1;text-shadow:0 0 22px color-mix(in srgb,${theme.accent} 65%,transparent);margin-bottom:4px;word-break:break-word;padding:0 8px">${html(STATE.player?.name||currentProfile?.army_name||"Guest ARMY")}</div>
+<div style="font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,${theme.accent} 90%,white);margin-bottom:6px">${html(bias)}${isAdmin?' · ADMIN':''}</div>
+<div style="font-size:12px;color:rgba(255,255,255,.55);font-weight:700;margin-bottom:18px">${done}/6 missions started${signedIn?' · synced 💜':' · session only'}</div>
+<div style="font-family:var(--display);font-size:clamp(72px,14vw,108px);line-height:1;color:white;text-shadow:0 0 28px color-mix(in srgb,${theme.accent} 75%,transparent)">#${communityRank()}</div>
+<div style="font-size:11px;color:var(--muted);font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:18px">Community guess rank</div>
+<div style="font-size:13px;font-style:italic;color:rgba(255,255,255,.72);max-width:280px;margin:0 auto 20px;line-height:1.5">"${theme.quote}"</div>
+<div class="stats" style="justify-content:center">${stat("Points",playerPoints())}${stat("Stock Votes",Object.keys(STATE.stockVote).length)}${stat("Bingo",STATE.bingoMarked.length)}</div>
+<button class="btn pulse" style="--page:${theme.accent};background:linear-gradient(135deg,color-mix(in srgb,${theme.accent} 70%,#1a0038),${theme.accent});margin-top:18px" onclick="shareCard('card')">📸 Download Photocard</button>
+${signedIn?`<button onclick="doSignOut()" style="display:block;margin:12px auto 0;color:rgba(255,255,255,.45);font-size:11px;font-weight:700">Sign Out</button>${isAdmin?`<a href="${ADMIN_URL}" target="_blank" rel="noopener" style="display:inline-block;margin:10px auto 0;padding:10px 20px;border-radius:999px;background:linear-gradient(135deg,#713f12,#FCD34D);color:#0a0020;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;text-decoration:none">Open Admin Panel</a>`:''}`:''}
+</section>
+<section class="panel glass"><h3 style="margin-bottom:14px">Your selections</h3><p style="margin-bottom:8px"><strong>Roulette locks:</strong><br><span style="color:var(--muted);font-size:13px">${roulette}</span></p><p style="margin-bottom:8px"><strong>Fantasy picks:</strong> ${Object.values(STATE.fantasyPicks).flat().filter(Boolean).length}</p><p style="margin-bottom:8px"><strong>Stock signals:</strong> ${Object.keys(STATE.stockVote).length}</p><p style="margin-bottom:18px"><strong>If They Play entries:</strong> ${Math.max(0,STATE.ifPlayEntries.length-6)}</p><h3 style="margin-bottom:10px">Missions</h3><div class="todo-list">${todos.map(t=>`<div class="todo ${t[1]?'done':''}"><span>${t[0]}</span><strong>${t[1]?'✓':'OPEN'}</strong></div>`).join("")}</div>
+${STATE.player||currentProfile?`<div style="margin-top:18px"><h3 style="margin-bottom:10px">Change bias</h3><div style="display:flex;flex-wrap:wrap;gap:8px">${["OT7","RM","Jin","SUGA","j-hope","Jimin","V","JK"].map(b=>`<button class="pill" style="${(STATE.player?.bias||currentProfile?.bias)===b?`background:color-mix(in srgb,${BIAS_THEMES[b].accent} 28%,rgba(255,255,255,.08));border-color:${BIAS_THEMES[b].accent};color:white`:'opacity:.65'}" onclick="changeBias('${b}')">${b}</button>`).join('')}</div></div>`:``}
+</section></div></div>`;
     }
+
+    async function changeBias(b){
+      if(STATE.player) STATE.player.bias=b;
+      if(currentProfile) {
+        currentProfile.bias=b;
+        await supa.from('profiles').update({bias:b}).eq('id',currentUser.id);
+      }
+      updateUserPill();
+      renderMyCard();
+      toast(b+' bias saved 💜');
+    }
+
+    function loginPlayer(){let name=(playerName.value||"").trim(),bias=(playerBias.value||"OT7").trim();if(!name)return toast("Enter an ARMY name for your card.");STATE.player={name,bias,joined:new Date().toLocaleDateString()};renderMyCard();toast(`Welcome to Bangtan Arcade, ${name}.`)}
+    function shareCard(context){
+      const bias = STATE.player?.bias || currentProfile?.bias || 'OT7';
+      const theme = BIAS_THEMES[bias] || BIAS_THEMES.OT7;
+      const name = STATE.player?.name || currentProfile?.army_name || 'Guest ARMY';
+      const points = playerPoints();
+      const rank = communityRank();
+      // Build context-specific info
+      let ctxLine = '';
+      if(context === 'roulette') {
+        const picks = Object.values(STATE.lockedShows)[0]?.picks || STATE.roulettePicks;
+        ctxLine = picks?.filter(Boolean).join(' + ') || 'No picks yet';
+      } else if(context === 'stock') {
+        ctxLine = Object.keys(STATE.stockVote).length + ' stocks voted';
+      } else if(context === 'bingo') {
+        ctxLine = STATE.bingoMarked.length + ' cells marked';
+      } else if(context === 'fantasy') {
+        ctxLine = Object.values(STATE.fantasyPicks).flat().filter(Boolean).length + ' fantasy picks';
+      } else {
+        ctxLine = points + ' total points · rank #' + rank;
+      }
+      // Generate canvas photocard
+      const canvas = document.createElement('canvas');
+      canvas.width = 800; canvas.height = 480;
+      const ctx2 = canvas.getContext('2d');
+      // Background gradient
+      const grad = ctx2.createLinearGradient(0,0,800,480);
+      grad.addColorStop(0,'#0d0524');
+      grad.addColorStop(0.5,'#1a0838');
+      grad.addColorStop(1,'#05020f');
+      ctx2.fillStyle = grad; ctx2.fillRect(0,0,800,480);
+      // Accent glow
+      const glow = ctx2.createRadialGradient(200,200,0,200,200,300);
+      glow.addColorStop(0,theme.accent+'55'); glow.addColorStop(1,'transparent');
+      ctx2.fillStyle = glow; ctx2.fillRect(0,0,800,480);
+      const glow2 = ctx2.createRadialGradient(600,280,0,600,280,250);
+      glow2.addColorStop(0,'#F472B633'); glow2.addColorStop(1,'transparent');
+      ctx2.fillStyle = glow2; ctx2.fillRect(0,0,800,480);
+      // Border
+      ctx2.strokeStyle = theme.accent+'66'; ctx2.lineWidth = 2;
+      ctx2.strokeRect(1,1,798,478);
+      // Inner border
+      ctx2.strokeStyle = 'rgba(255,255,255,0.08)'; ctx2.lineWidth = 1;
+      ctx2.strokeRect(12,12,776,456);
+      // Cover emoji
+      ctx2.font = '72px serif'; ctx2.textAlign = 'left';
+      ctx2.fillText(theme.cover, 48, 110);
+      // ARMY badge
+      ctx2.fillStyle = theme.accent+'33';
+      ctx2.beginPath(); ctx2.roundRect(48,128,180,32,16); ctx2.fill();
+      ctx2.fillStyle = theme.accent;
+      ctx2.font = 'bold 11px Arial'; ctx2.letterSpacing = '2px';
+      ctx2.fillText('BANGTAN ARCADE · ' + theme.album.toUpperCase(), 58, 149);
+      ctx2.letterSpacing = '0px';
+      // Name
+      ctx2.fillStyle = 'white';
+      ctx2.font = 'bold 52px Arial';
+      ctx2.fillText(name.length > 14 ? name.slice(0,14)+'…' : name, 48, 240);
+      // Bias
+      ctx2.fillStyle = theme.accent;
+      ctx2.font = 'bold 16px Arial';
+      ctx2.fillText(bias.toUpperCase() + (isAdmin ? ' · ADMIN' : ''), 48, 272);
+      // Context line
+      ctx2.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx2.font = '15px Arial';
+      ctx2.fillText(ctxLine, 48, 310);
+      // Divider
+      ctx2.strokeStyle = 'rgba(255,255,255,0.12)'; ctx2.lineWidth = 1;
+      ctx2.beginPath(); ctx2.moveTo(48,330); ctx2.lineTo(480,330); ctx2.stroke();
+      // Stats
+      const stats = [['POINTS',points],['RANK','#'+rank],['STOCKS',Object.keys(STATE.stockVote).length]];
+      stats.forEach((s,i) => {
+        const x = 48 + i * 150;
+        ctx2.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx2.font = 'bold 10px Arial'; ctx2.letterSpacing = '2px';
+        ctx2.fillText(s[0], x, 358); ctx2.letterSpacing = '0px';
+        ctx2.fillStyle = 'white';
+        ctx2.font = 'bold 28px Arial';
+        ctx2.fillText(String(s[1]), x, 392);
+      });
+      // Quote
+      ctx2.fillStyle = 'rgba(255,255,255,0.38)';
+      ctx2.font = 'italic 13px Arial';
+      ctx2.fillText('"' + theme.quote.slice(0,45) + (theme.quote.length>45?'…':'') + '"', 48, 444);
+      // Right side - rank display
+      ctx2.fillStyle = theme.accent+'22';
+      ctx2.beginPath(); ctx2.roundRect(540,80,220,300,24); ctx2.fill();
+      ctx2.strokeStyle = theme.accent+'44'; ctx2.lineWidth = 1;
+      ctx2.beginPath(); ctx2.roundRect(540,80,220,300,24); ctx2.stroke();
+      ctx2.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx2.font = 'bold 11px Arial'; ctx2.textAlign = 'center'; ctx2.letterSpacing = '2px';
+      ctx2.fillText('COMMUNITY RANK', 650, 118); ctx2.letterSpacing = '0px';
+      ctx2.fillStyle = 'white';
+      ctx2.font = 'bold 96px Arial';
+      ctx2.fillText('#' + rank, 650, 240);
+      ctx2.fillStyle = theme.accent;
+      ctx2.font = 'bold 13px Arial';
+      ctx2.fillText('bebevibes.github.io/bangtan-arcade', 650, 350);
+      ctx2.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx2.font = '12px Arial';
+      ctx2.fillText('💜 Bangtan Arcade · BTS World Tour 2026', 650, 374);
+      ctx2.textAlign = 'left';
+      // Download
+      const link = document.createElement('a');
+      link.download = 'bangtan-arcade-' + name.replace(/\s+/g,'-').toLowerCase() + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      // Also try native share
+      canvas.toBlob(blob => {
+        if(navigator.share && navigator.canShare && navigator.canShare({files:[new File([blob],'photocard.png',{type:'image/png'})]})) {
+          navigator.share({files:[new File([blob],'photocard.png',{type:'image/png'})],title:'My Bangtan Arcade Card'}).catch(()=>{});
+        }
+      });
+      toast('💜 Photocard downloaded! Share it on socials.');
+    }
+    function renderAccount(){let todos=todoItems(),done=todos.filter(x=>x[1]).length,roulette=Object.entries(STATE.lockedShows).map(([id,v])=>`${TOUR.find(x=>x.id===id)?.city}: ${v.picks.join(" + ")}`).join("<br>")||"No Roulette locks yet.";accountContent.innerHTML=`<div class="modal-head"><h2 id="accountTitle">My Bangtan Arcade Card</h2><button class="btn secondary" onclick="closeModal('accountModal')">Close</button></div>${!STATE.player?`<section class="panel glass"><h3>Create your player login</h3><p class="mini-note">This single-file prototype keeps your card in the current session. A real account database can be added next for cross-device login.</p><div class="form-grid two"><input id="playerName" placeholder="ARMY name" /><input id="playerBias" placeholder="Bias or OT7" /></div><div class="cta-row"><button class="btn" onclick="loginPlayer()">Create My Card</button></div></section>`:""}<div class="profile-grid"><section class="photocard"><div class="badge">Bangtan Arcade Player</div><h3>${html(STATE.player?.name||"Guest ARMY")}</h3><p>${html(STATE.player?.bias||"OT7")} · ${done}/6 tasks started</p><div class="big-rank">#${communityRank()}</div><p class="copy">Community guess rank</p><div class="stats">${stat("Points",playerPoints())}${stat("Stock Votes",Object.keys(STATE.stockVote).length)}${stat("Bingo Marks",STATE.bingoMarked.length)}</div><button class="btn pulse" onclick="shareCard()">Share Photocard</button></section><section class="panel glass"><h3>Your selections</h3><p><strong>Roulette:</strong><br>${roulette}</p><p><strong>Fantasy picks:</strong> ${Object.values(STATE.fantasyPicks).flat().filter(Boolean).length}</p><p><strong>Stock signals:</strong> ${Object.keys(STATE.stockVote).length}</p><p><strong>If They Play entries:</strong> ${Math.max(0,STATE.ifPlayEntries.length-6)}</p><h3 style="margin-top:18px">Still need to do</h3><div class="todo-list">${todos.map(t=>`<div class="todo ${t[1]?'done':''}"><span>${t[0]}</span><strong>${t[1]?'✓':'OPEN'}</strong></div>`).join("")}</div></section></div>`}
+    function closeModal(id){document.getElementById(id).classList.remove("open")}
+    function init(){tickerTrack.textContent=tickerText+tickerText;initNav();initDot();renderFalling();renderHome();renderRoulette();renderFantasy();renderStock();renderBingo();renderIfPlay();renderTracker();renderLeaderboard();renderVote();renderStream();renderMyCard();applyCity("El Paso Day 1");updateNavProgress();loadPublicConfig();setTimeout(initAuth,150);}
+
+    // ── Load public config (no login required) ────────────────────────────
+    async function loadPublicConfig(){
+      if(!supa) return;
+      try {
+        const{data:ticker}=await supa.from('site_config').select('value').eq('key','ticker_text').single();
+        if(ticker?.value){const t=typeof ticker.value==='string'?ticker.value:JSON.stringify(ticker.value).replace(/^"|"$/g,'');if(t)tickerTrack.textContent=t+t;}
+      } catch(e){}
+      try {
+        const{data:retired}=await supa.from('site_config').select('value').eq('key','retired_songs').single();
+        if(retired?.value){STATE.retiredSongs=Array.isArray(retired.value)?retired.value:JSON.parse(retired.value);renderHome();renderTracker();}
+      } catch(e){}
+      try {
+        const{data:ann}=await supa.from('site_config').select('value').eq('key','announcement').single();
+        if(ann?.value&&ann.value!=='null'){const a=typeof ann.value==='object'?ann.value:JSON.parse(ann.value);if(a?.text)showAnnouncement(a);}
+      } catch(e){}
+      try {
+        const{data:votes}=await supa.from('vote_categories').select('*').eq('show_active',true).order('sort_order');
+        if(votes?.length){window.LIVE_VOTE_CATEGORIES=votes;renderVote();}
+      } catch(e){}
+      try {
+        const{data:spot}=await supa.from('site_config').select('value').eq('key','spotify_playlists').single();
+        const{data:appl}=await supa.from('site_config').select('value').eq('key','apple_playlists').single();
+        if(spot?.value)window.LIVE_SPOTIFY=Array.isArray(spot.value)?spot.value:JSON.parse(spot.value);
+        if(appl?.value)window.LIVE_APPLE=Array.isArray(appl.value)?appl.value:JSON.parse(appl.value);
+        if(spot?.value||appl?.value)renderStream();
+      } catch(e){}
+    }
+
+    function showAnnouncement(a){
+      const colors={info:'rgba(167,139,250,.18)',hype:'rgba(244,114,182,.18)',alert:'rgba(252,211,77,.18)',success:'rgba(52,211,153,.18)'};
+      const borders={info:'rgba(167,139,250,.35)',hype:'rgba(244,114,182,.35)',alert:'rgba(252,211,77,.35)',success:'rgba(52,211,153,.35)'};
+      const existing=document.getElementById('siteAnnouncement');if(existing)existing.remove();
+      const el=document.createElement('div');el.id='siteAnnouncement';
+      el.style.cssText='position:fixed;top:calc(var(--ticker) + var(--nav));left:0;right:0;z-index:997;padding:10px 20px;text-align:center;font-weight:900;font-size:13px;color:white;background:'+colors[a.type||'info']+';border-bottom:1px solid '+borders[a.type||'info']+';backdrop-filter:blur(12px)';
+      el.innerHTML='📢 '+a.text+'<button onclick="this.parentElement.remove()" style="margin-left:14px;font-size:16px;line-height:1;background:none;border:0;color:inherit;cursor:pointer;opacity:.7;min-height:0;padding:0">×</button>';
+      document.body.appendChild(el);
+    }
+    document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal("songModal");closeModal("revealModal");closeModal("accountModal");toggleMobile(false)}})
+    init();
+  </script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="transform:translate(-${scrollX}px,-${scrollY}px);transform-origin:top left">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>
